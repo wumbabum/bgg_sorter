@@ -64,4 +64,4 @@ The advanced search form now closely matches the authentic BoardGameGeek advance
 - Phoenix LiveView integration
 
 ## Testing
-Visit `http://localhost:4000/collection?advanced_search=true` to see the updated BGG-style advanced search form.
+Visit `http://localhost:7384/collection?advanced_search=true` to see the updated BGG-style advanced search form.

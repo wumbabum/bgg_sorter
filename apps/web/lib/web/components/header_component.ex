@@ -9,7 +9,7 @@ defmodule Web.Components.HeaderComponent do
       <div class="global-header-content">
         <.link navigate="/" class="bgg-logo">
           <div class="bgg-icon">BGG</div>
-          BggSorter
+          Bgg Sorter
         </.link>
         <div class="global-header-nav">
           <button phx-click="toggle_advanced_search" class="nav-link nav-button">

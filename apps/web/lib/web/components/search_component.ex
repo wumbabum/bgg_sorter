@@ -5,9 +5,11 @@ defmodule Web.Components.SearchComponent do
 
   def main_search(assigns) do
     ~H"""
-    <div class="collection-header">
-      <h1 class="collection-title">Board Game Collection Browser</h1>
-      <div class="collection-subtitle">Enter a BoardGameGeek username to view their collection</div>
+    <div class="section-container">
+      <div class="collection-header">
+        <h1 class="collection-title">Board Game Collection Browser</h1>
+        <div class="collection-subtitle">Enter a BoardGameGeek username to view their collection</div>
+      </div>
     </div>
 
     <div style="text-align: center; margin-top: 40px; padding-bottom: 40px;">
