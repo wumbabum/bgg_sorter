@@ -16,6 +16,8 @@
 # General application configuration
 import Config
 
+config :core, :bgg_req_client, Core.BggGateway.ReqClient
+
 # Configure Mix tasks and generators
 config :core,
   ecto_repos: [Core.Repo]
