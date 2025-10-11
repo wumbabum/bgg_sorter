@@ -27,7 +27,6 @@ defmodule Web.CoreComponents do
 
   """
   use Phoenix.Component
-  use Gettext, backend: Web.Gettext
 
   alias Phoenix.LiveView.JS
 
@@ -71,7 +70,7 @@ defmodule Web.CoreComponents do
           <p>{msg}</p>
         </div>
         <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
+        <button type="button" class="group self-start cursor-pointer" aria-label="close">
           <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
         </button>
       </div>
@@ -339,7 +338,7 @@ defmodule Web.CoreComponents do
         <tr>
           <th :for={col <- @col}>{col[:label]}</th>
           <th :if={@action != []}>
-            <span class="sr-only">{gettext("Actions")}</span>
+            <span class="sr-only">Actions</span>
           </th>
         </tr>
       </thead>
@@ -443,24 +442,14 @@ defmodule Web.CoreComponents do
   end
 
   @doc """
-  Translates an error message using gettext.
+  Translates an error message.
   """
   def translate_error({msg, opts}) do
-    # When using gettext, we typically pass the strings we want
-    # to translate as a static argument:
-    #
-    #     # Translate the number of files with plural rules
-    #     dngettext("errors", "1 file", "%{count} files", count)
-    #
-    # However the error messages in our forms and APIs are generated
-    # dynamically, so we need to translate them by calling Gettext
-    # with our gettext backend as first argument. Translations are
-    # available in the errors.po file (as we use the "errors" domain).
-    if count = opts[:count] do
-      Gettext.dngettext(Web.Gettext, "errors", msg, msg, count, opts)
-    else
-      Gettext.dgettext(Web.Gettext, "errors", msg, opts)
-    end
+    # Simple error message handling
+    # You can enhance this later if you need internationalization
+    Enum.reduce(opts, msg, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", to_string(value))
+    end)
   end
 
   @doc """

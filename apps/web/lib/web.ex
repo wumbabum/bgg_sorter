@@ -40,8 +40,6 @@ defmodule Web do
     quote do
       use Phoenix.Controller, formats: [:html, :json]
 
-      use Gettext, backend: Web.Gettext
-
       import Plug.Conn
 
       unquote(verified_routes())
@@ -79,9 +77,6 @@ defmodule Web do
 
   defp html_helpers do
     quote do
-      # Translation
-      use Gettext, backend: Web.Gettext
-
       # HTML escaping functionality
       import Phoenix.HTML
       # Core UI components

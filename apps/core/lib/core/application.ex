@@ -8,9 +8,7 @@ defmodule Core.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      Core.Repo,
-      {DNSCluster, query: Application.get_env(:core, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: Core.PubSub}
+      Core.Repo
       # Start a worker by calling: Core.Worker.start_link(arg)
       # {Core.Worker, arg}
     ]
