@@ -7,7 +7,19 @@ defmodule BggSorter.MixProject do
       version: "0.1.0",
       start_permanent: Mix.env() == :prod,
       releases: releases(),
-      deps: deps()
+      deps: deps(),
+      aliases: aliases()
+    ]
+  end
+
+  defp aliases do
+    [
+      all_tests: [
+        "compile --force --warnings-as-errors",
+        "credo --strict",
+        "format --check-formatted",
+        "dialyzer"
+      ]
     ]
   end
 
