@@ -23,8 +23,8 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Enter username to search their collection"
               size="35"
             />
-
-            <!-- Board Game Name -->
+            
+    <!-- Board Game Name -->
             <AdvancedSearchInputComponent.text_input
               id="search-name"
               name="primary_name"
@@ -33,8 +33,8 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Search by game name"
               size="35"
             />
-
-            <!-- Year Published Range -->
+            
+    <!-- Year Published Range -->
             <AdvancedSearchInputComponent.range_input
               id="search-year"
               name="yearpublished"
@@ -42,13 +42,11 @@ defmodule Web.Components.AdvancedSearchComponent do
               min_value={@filters[:yearpublished_min] || ""}
               max_value={@filters[:yearpublished_max] || ""}
             />
-
-            <!-- Number of Players -->
-            <AdvancedSearchInputComponent.player_select
-              selected_players={@filters[:players] || ""}
-            />
-
-            <!-- Playing Time Range -->
+            
+    <!-- Number of Players -->
+            <AdvancedSearchInputComponent.player_select selected_players={@filters[:players] || ""} />
+            
+    <!-- Playing Time Range -->
             <AdvancedSearchInputComponent.range_input
               id="search-playtime"
               name="playingtime"
@@ -56,8 +54,8 @@ defmodule Web.Components.AdvancedSearchComponent do
               min_value={@filters[:playingtime_min] || ""}
               max_value={@filters[:playingtime_max] || ""}
             />
-
-            <!-- Minimum Age -->
+            
+    <!-- Minimum Age -->
             <AdvancedSearchInputComponent.number_input
               id="search-minage"
               name="minage"
@@ -66,8 +64,8 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Age in years"
               suffix="years or younger"
             />
-
-            <!-- User Rating (Minimum) -->
+            
+    <!-- User Rating (Minimum) -->
             <AdvancedSearchInputComponent.number_input
               id="search-rating"
               name="average"
@@ -76,8 +74,8 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Rating (1-10)"
               suffix="or higher"
             />
-
-            <!-- Maximum BGG Rank -->
+            
+    <!-- Maximum BGG Rank -->
             <AdvancedSearchInputComponent.number_input
               id="search-rank"
               name="rank"
@@ -86,8 +84,8 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Rank number"
               suffix="or better (lower number)"
             />
-
-            <!-- Weight Range (1-5) -->
+            
+    <!-- Weight Range (1-5) -->
             <AdvancedSearchInputComponent.range_input
               id="search-weight"
               name="averageweight"
@@ -96,8 +94,8 @@ defmodule Web.Components.AdvancedSearchComponent do
               max_value={@filters[:averageweight_max] || ""}
               suffix="(1 Light - 5 Heavy)"
             />
-
-            <!-- Game Description -->
+            
+    <!-- Game Description -->
             <AdvancedSearchInputComponent.text_input
               id="search-description"
               name="description"
@@ -106,7 +104,6 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Search within game descriptions"
               size="35"
             />
-
           </tbody>
         </table>
 

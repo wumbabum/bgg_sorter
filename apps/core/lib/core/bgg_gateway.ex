@@ -11,7 +11,8 @@ defmodule Core.BggGateway do
   @base_url "https://boardgamegeek.com/xmlapi2"
 
   @doc "Retrieves a user's board game collection from BoardGameGeek."
-  @spec collection(String.t(), keyword()) :: {:ok, CollectionResponse.t()} | {:error, Exception.t()}
+  @spec collection(String.t(), keyword()) ::
+          {:ok, CollectionResponse.t()} | {:error, Exception.t()}
   def collection(username, opts \\ []) do
     request_params =
       opts
@@ -21,8 +22,11 @@ defmodule Core.BggGateway do
     url = "#{@base_url}/collection"
 
     with {:ok, validated_params} <- cast_collection_request(request_params),
-         Logger.info("Fetching collection for #{username} with params: #{inspect(validated_params)}"),
-         {:ok, %Req.Response{status: 200} = response} <- req_client().get(url, validated_params, %{}),
+         Logger.info(
+           "Fetching collection for #{username} with params: #{inspect(validated_params)}"
+         ),
+         {:ok, %Req.Response{status: 200} = response} <-
+           req_client().get(url, validated_params, %{}),
          {:ok, collection} <- parse_xml_response(response.body) do
       {:ok, collection}
     else
@@ -64,19 +68,20 @@ defmodule Core.BggGateway do
   end
 
   defp extract_collection_data(xml_body) do
-    collection_data = xml_body
-    |> xmap(
-      totalitems: ~x"//items/@totalitems"s,
-      termsofuse: ~x"//items/@termsofuse"s,
-      items: [
-        ~x"//items/item"l,
-        id: ~x"./@objectid"s,
-        type: ~x"./@objecttype"s,
-        subtype: ~x"./@subtype"s,
-        primary_name: ~x"./name/text()"s,
-        yearpublished: ~x"./yearpublished/text()"so
-      ]
-    )
+    collection_data =
+      xml_body
+      |> xmap(
+        totalitems: ~x"//items/@totalitems"s,
+        termsofuse: ~x"//items/@termsofuse"s,
+        items: [
+          ~x"//items/item"l,
+          id: ~x"./@objectid"s,
+          type: ~x"./@objecttype"s,
+          subtype: ~x"./@subtype"s,
+          primary_name: ~x"./name/text()"s,
+          yearpublished: ~x"./yearpublished/text()"so
+        ]
+      )
 
     {:ok, collection_data}
   rescue
@@ -134,31 +139,32 @@ defmodule Core.BggGateway do
   end
 
   defp extract_things_data(xml_body) do
-    things_data = xml_body
-    |> xmap(
-      things: [
-        ~x"//items/item"l,
-        id: ~x"./@id"s,
-        type: ~x"./@type"s,
-        thumbnail: ~x"./thumbnail/text()"so,
-        image: ~x"./image/text()"so,
-        primary_name: ~x"./name[@type='primary']/@value"so,
-        description: ~x"./description/text()"so,
-        yearpublished: ~x"./yearpublished/@value"so,
-        minplayers: ~x"./minplayers/@value"so,
-        maxplayers: ~x"./maxplayers/@value"so,
-        playingtime: ~x"./playingtime/@value"so,
-        minplaytime: ~x"./minplaytime/@value"so,
-        maxplaytime: ~x"./maxplaytime/@value"so,
-        minage: ~x"./minage/@value"so,
-        usersrated: ~x".//statistics/ratings/usersrated/@value"so,
-        average: ~x".//statistics/ratings/average/@value"so,
-        bayesaverage: ~x".//statistics/ratings/bayesaverage/@value"so,
-        rank: ~x".//statistics/ratings/ranks/rank[@name='boardgame']/@value"so,
-        owned: ~x".//statistics/ratings/owned/@value"so,
-        averageweight: ~x".//statistics/ratings/averageweight/@value"so
-      ]
-    )
+    things_data =
+      xml_body
+      |> xmap(
+        things: [
+          ~x"//items/item"l,
+          id: ~x"./@id"s,
+          type: ~x"./@type"s,
+          thumbnail: ~x"./thumbnail/text()"so,
+          image: ~x"./image/text()"so,
+          primary_name: ~x"./name[@type='primary']/@value"so,
+          description: ~x"./description/text()"so,
+          yearpublished: ~x"./yearpublished/@value"so,
+          minplayers: ~x"./minplayers/@value"so,
+          maxplayers: ~x"./maxplayers/@value"so,
+          playingtime: ~x"./playingtime/@value"so,
+          minplaytime: ~x"./minplaytime/@value"so,
+          maxplaytime: ~x"./maxplaytime/@value"so,
+          minage: ~x"./minage/@value"so,
+          usersrated: ~x".//statistics/ratings/usersrated/@value"so,
+          average: ~x".//statistics/ratings/average/@value"so,
+          bayesaverage: ~x".//statistics/ratings/bayesaverage/@value"so,
+          rank: ~x".//statistics/ratings/ranks/rank[@name='boardgame']/@value"so,
+          owned: ~x".//statistics/ratings/owned/@value"so,
+          averageweight: ~x".//statistics/ratings/averageweight/@value"so
+        ]
+      )
 
     {:ok, things_data.things}
   rescue
@@ -168,15 +174,16 @@ defmodule Core.BggGateway do
   end
 
   defp cast_things(things_data) do
-    things = Enum.map(things_data, fn thing_params ->
-      case Thing.changeset(%Thing{}, thing_params) do
-        %Ecto.Changeset{valid?: true} = changeset ->
-          {:ok, Ecto.Changeset.apply_changes(changeset)}
+    things =
+      Enum.map(things_data, fn thing_params ->
+        case Thing.changeset(%Thing{}, thing_params) do
+          %Ecto.Changeset{valid?: true} = changeset ->
+            {:ok, Ecto.Changeset.apply_changes(changeset)}
 
-        %Ecto.Changeset{valid?: false} ->
-          {:error, :invalid_thing_data}
-      end
-    end)
+          %Ecto.Changeset{valid?: false} ->
+            {:error, :invalid_thing_data}
+        end
+      end)
 
     # Check if all things were successfully cast
     case Enum.find(things, fn {status, _} -> status == :error end) do
@@ -196,6 +203,7 @@ defmodule Core.BggGateway do
           |> Enum.reject(fn {_k, v} -> is_nil(v) end)
           |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
           |> Enum.into(%{})
+
         {:ok, params_map}
 
       %Ecto.Changeset{valid?: false} = changeset ->

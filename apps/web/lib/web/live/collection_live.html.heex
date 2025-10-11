@@ -3,26 +3,26 @@
 <div class="maincontent">
   <%= if @advanced_search do %>
     <!-- Advanced Search Form - shown for both /collection?advanced_search=true and /collection/:username?advanced_search=true -->
-    <Web.Components.AdvancedSearchComponent.advanced_search_form 
-      username={@username} 
+    <Web.Components.AdvancedSearchComponent.advanced_search_form
+      username={@username}
       filters={@filters}
     />
   <% end %>
-  
+
   <%= if @username do %>
     <!-- Collection content only shown when username is present -->
     <div class="collection-content">
       <div class="page-navigator-wrapper">
-        <Web.Components.PageNavigatorComponent.page_navigator 
+        <Web.Components.PageNavigatorComponent.page_navigator
           current_page={@current_page}
           items_per_page={@items_per_page}
           total_items={@total_items}
           username={@username}
         />
       </div>
-      
+
       <div class="collection-header">
-        <div class="collection-subtitle">Board game collection for <b><%= @username %></b></div>
+        <div class="collection-subtitle">Board game collection for <b>{@username}</b></div>
       </div>
 
       <%= cond do %>
@@ -30,18 +30,15 @@
           <div class="loading-spinner">
             Loading collection...
           </div>
-
         <% @search_error -> %>
           <div class="error-message">
-            <p><strong>Error:</strong> <%= @search_error %></p>
+            <p><strong>Error:</strong> {@search_error}</p>
             <button phx-click="retry_search" class="retry-button">Retry</button>
           </div>
-
         <% Enum.empty?(@collection_items) -> %>
           <div class="error-message">
             <p>No games found in this collection.</p>
           </div>
-
         <% true -> %>
           <table class="collection">
             <thead>
@@ -59,8 +56,8 @@
               <% end %>
             </tbody>
           </table>
-          
-          <Web.Components.PaginationComponent.pagination 
+
+          <Web.Components.PaginationComponent.pagination
             current_page={@current_page}
             items_per_page={@items_per_page}
             total_items={@total_items}
@@ -75,7 +72,7 @@
   <% end %>
 </div>
 
-<Web.Components.ModalComponent.game_modal 
+<Web.Components.ModalComponent.game_modal
   modal_open={@modal_open}
   modal_loading={@modal_loading}
   selected_thing={@selected_thing}

@@ -7,14 +7,14 @@ defmodule Web.Components.AdvancedSearchInputComponent do
   def text_input(assigns) do
     ~H"""
     <tr>
-      <td width="25%" align="right"><b><%= @label %></b></td>
+      <td width="25%" align="right"><b>{@label}</b></td>
       <td width="75%">
-        <input 
+        <input
           id={@id}
-          type="text" 
-          name={@name} 
-          size={@size || "35"} 
-          value={@value || ""} 
+          type="text"
+          name={@name}
+          size={@size || "35"}
+          value={@value || ""}
           placeholder={@placeholder || ""}
         />
       </td>
@@ -26,27 +26,27 @@ defmodule Web.Components.AdvancedSearchInputComponent do
   def range_input(assigns) do
     ~H"""
     <tr>
-      <td width="25%" align="right"><b><%= @label %></b></td>
+      <td width="25%" align="right"><b>{@label}</b></td>
       <td width="75%">
-        <input 
+        <input
           id={"#{@id}-min"}
-          type="text" 
-          name={"#{@name}[min]"} 
-          size="5" 
-          value={@min_value || ""} 
+          type="text"
+          name={"#{@name}[min]"}
+          size="5"
+          value={@min_value || ""}
           placeholder="Min"
         />
         <span aria-hidden="true"> to </span>
-        <input 
+        <input
           id={"#{@id}-max"}
-          type="text" 
-          name={"#{@name}[max]"} 
-          size="5" 
-          value={@max_value || ""} 
+          type="text"
+          name={"#{@name}[max]"}
+          size="5"
+          value={@max_value || ""}
           placeholder="Max"
         />
         <%= if assigns[:suffix] do %>
-          <span aria-hidden="true"><%= @suffix %></span>
+          <span aria-hidden="true">{@suffix}</span>
         <% end %>
       </td>
     </tr>
@@ -57,18 +57,18 @@ defmodule Web.Components.AdvancedSearchInputComponent do
   def number_input(assigns) do
     ~H"""
     <tr>
-      <td width="25%" align="right"><b><%= @label %></b></td>
+      <td width="25%" align="right"><b>{@label}</b></td>
       <td width="75%">
-        <input 
+        <input
           id={@id}
-          type="text" 
-          name={@name} 
-          size="5" 
-          value={@value || ""} 
+          type="text"
+          name={@name}
+          size="5"
+          value={@value || ""}
           placeholder={@placeholder || ""}
         />
         <%= if assigns[:suffix] do %>
-          <span aria-hidden="true"><%= @suffix %></span>
+          <span aria-hidden="true">{@suffix}</span>
         <% end %>
       </td>
     </tr>
@@ -106,7 +106,7 @@ defmodule Web.Components.AdvancedSearchInputComponent do
   def playtime_select(assigns) do
     ~H"""
     <tr>
-      <td width="25%" align="right"><b><%= @label %></b></td>
+      <td width="25%" align="right"><b>{@label}</b></td>
       <td width="75%">
         <select id={@id} name={@name} size="1">
           <option value="">Any</option>
@@ -122,7 +122,7 @@ defmodule Web.Components.AdvancedSearchInputComponent do
           <option value="300" selected={@selected_time == "300"}>5+ hours</option>
         </select>
         <%= if assigns[:suffix] do %>
-          <span aria-hidden="true"> (<%= @suffix %>)</span>
+          <span aria-hidden="true"> ({@suffix})</span>
         <% end %>
       </td>
     </tr>

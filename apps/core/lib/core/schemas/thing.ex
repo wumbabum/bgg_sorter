@@ -7,27 +7,27 @@ defmodule Core.Schemas.Thing do
   import Ecto.Changeset
 
   @type t :: %__MODULE__{
-    id: String.t(),
-    type: String.t(),
-    subtype: String.t() | nil,
-    thumbnail: String.t() | nil,
-    image: String.t() | nil,
-    primary_name: String.t() | nil,
-    description: String.t() | nil,
-    yearpublished: String.t() | nil,
-    minplayers: String.t() | nil,
-    maxplayers: String.t() | nil,
-    playingtime: String.t() | nil,
-    minplaytime: String.t() | nil,
-    maxplaytime: String.t() | nil,
-    minage: String.t() | nil,
-    usersrated: String.t() | nil,
-    average: String.t() | nil,
-    bayesaverage: String.t() | nil,
-    rank: String.t() | nil,
-    owned: String.t() | nil,
-    averageweight: String.t() | nil
-  }
+          id: String.t(),
+          type: String.t(),
+          subtype: String.t() | nil,
+          thumbnail: String.t() | nil,
+          image: String.t() | nil,
+          primary_name: String.t() | nil,
+          description: String.t() | nil,
+          yearpublished: String.t() | nil,
+          minplayers: String.t() | nil,
+          maxplayers: String.t() | nil,
+          playingtime: String.t() | nil,
+          minplaytime: String.t() | nil,
+          maxplaytime: String.t() | nil,
+          minage: String.t() | nil,
+          usersrated: String.t() | nil,
+          average: String.t() | nil,
+          bayesaverage: String.t() | nil,
+          rank: String.t() | nil,
+          owned: String.t() | nil,
+          averageweight: String.t() | nil
+        }
 
   @primary_key false
   embedded_schema do

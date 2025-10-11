@@ -84,9 +84,22 @@ defmodule Core.Schemas.CollectionRequestTest do
     end
 
     test "validates binary flags are 0 or 1" do
-      binary_fields = [:own, :rated, :played, :comment, :trade, :want, :wishlist, 
-                       :preordered, :wanttoplay, :wanttobuy, :prevowned, :hasparts, 
-                       :wantparts, :stats]
+      binary_fields = [
+        :own,
+        :rated,
+        :played,
+        :comment,
+        :trade,
+        :want,
+        :wishlist,
+        :preordered,
+        :wanttoplay,
+        :wanttobuy,
+        :prevowned,
+        :hasparts,
+        :wantparts,
+        :stats
+      ]
 
       Enum.each(binary_fields, fn field ->
         # Invalid value
@@ -132,12 +145,18 @@ defmodule Core.Schemas.CollectionRequestTest do
       Enum.each(rating_fields, fn field ->
         # Invalid values
         invalid_attrs_low = Map.put(%{username: "testuser"}, field, 0)
-        invalid_changeset_low = CollectionRequest.changeset(%CollectionRequest{}, invalid_attrs_low)
+
+        invalid_changeset_low =
+          CollectionRequest.changeset(%CollectionRequest{}, invalid_attrs_low)
+
         refute invalid_changeset_low.valid?
         assert Keyword.has_key?(invalid_changeset_low.errors, field)
 
         invalid_attrs_high = Map.put(%{username: "testuser"}, field, 11)
-        invalid_changeset_high = CollectionRequest.changeset(%CollectionRequest{}, invalid_attrs_high)
+
+        invalid_changeset_high =
+          CollectionRequest.changeset(%CollectionRequest{}, invalid_attrs_high)
+
         refute invalid_changeset_high.valid?
         assert Keyword.has_key?(invalid_changeset_high.errors, field)
 
@@ -153,7 +172,7 @@ defmodule Core.Schemas.CollectionRequestTest do
     test "validates modifiedsince date format" do
       # Invalid date formats
       invalid_dates = ["2025/01/01", "01-01-2025", "2025-1-1", "invalid-date", "25-01-01"]
-      
+
       Enum.each(invalid_dates, fn date ->
         attrs = %{username: "testuser", modifiedsince: date}
         changeset = CollectionRequest.changeset(%CollectionRequest{}, attrs)
@@ -163,7 +182,7 @@ defmodule Core.Schemas.CollectionRequestTest do
 
       # Valid date formats
       valid_dates = ["2025-01-01", "2024-12-31", "2000-06-15"]
-      
+
       Enum.each(valid_dates, fn date ->
         attrs = %{username: "testuser", modifiedsince: date}
         changeset = CollectionRequest.changeset(%CollectionRequest{}, attrs)

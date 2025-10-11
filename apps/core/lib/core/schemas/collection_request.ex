@@ -38,10 +38,29 @@ defmodule Core.Schemas.CollectionRequest do
   def changeset(collection_request, attrs) do
     collection_request
     |> cast(attrs, [
-      :username, :version, :subtype, :excludesubtype, :own, :rated,
-      :played, :comment, :trade, :want, :wishlist, :wishlistpriority,
-      :preordered, :wanttoplay, :wanttobuy, :prevowned, :hasparts,
-      :wantparts, :minrating, :rating, :minbggrating, :modifiedsince, :stats
+      :username,
+      :version,
+      :subtype,
+      :excludesubtype,
+      :own,
+      :rated,
+      :played,
+      :comment,
+      :trade,
+      :want,
+      :wishlist,
+      :wishlistpriority,
+      :preordered,
+      :wanttoplay,
+      :wanttobuy,
+      :prevowned,
+      :hasparts,
+      :wantparts,
+      :minrating,
+      :rating,
+      :minbggrating,
+      :modifiedsince,
+      :stats
     ])
     |> validate_required([:username])
     |> validate_inclusion(:version, [1])

@@ -9,10 +9,10 @@ defmodule Core.Schemas.CollectionResponse do
   alias Core.Schemas.Thing
 
   @type t :: %__MODULE__{
-    totalitems: String.t() | nil,
-    termsofuse: String.t() | nil,
-    items: [Thing.t()]
-  }
+          totalitems: String.t() | nil,
+          termsofuse: String.t() | nil,
+          items: [Thing.t()]
+        }
 
   @primary_key false
   embedded_schema do

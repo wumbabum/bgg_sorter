@@ -18,7 +18,8 @@ defmodule Web.Router do
     pipe_through :browser
 
     live "/", CollectionLive, :index
-    live "/collection", CollectionLive, :index  # Home page with optional advanced search
+    # Home page with optional advanced search
+    live "/collection", CollectionLive, :index
     live "/collection/:username", CollectionLive, :show
   end
 

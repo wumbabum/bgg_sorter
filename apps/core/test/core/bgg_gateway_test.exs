@@ -14,29 +14,30 @@ defmodule Core.BggGatewayTest do
       expect(Core.MockReqClient, :get, fn url, params, _headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == "wumbabum"
+
         {:ok,
          %Req.Response{
            status: 200,
            body: """
-            <?xml version="1.0" encoding="utf-8" standalone="yes"?>
-              <items totalitems="3" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse" pubdate="Sat, 11 Oct 2025 04:11:33 +0000">
-                <item objecttype="thing" objectid="68448" subtype="boardgame" collid="113318978">
-                  <name sortindex="1">7 Wonders</name>
-                  <yearpublished>2010</yearpublished>
-                  <numplays>0</numplays>
-                </item>
-                <item objecttype="thing" objectid="124742" subtype="boardgame" collid="113319037">
-                  <name sortindex="1">Android: Netrunner</name>
-                  <yearpublished>2012</yearpublished>
-                  <numplays>0</numplays>
-                </item>
-                <item objecttype="thing" objectid="359871" subtype="boardgame" collid="121983226">
-                  <name sortindex="1">Arcs</name>
-                  <yearpublished>2024</yearpublished>
-                  <numplays>0</numplays>
-                </item>
-              </items>
-            """
+           <?xml version="1.0" encoding="utf-8" standalone="yes"?>
+             <items totalitems="3" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse" pubdate="Sat, 11 Oct 2025 04:11:33 +0000">
+               <item objecttype="thing" objectid="68448" subtype="boardgame" collid="113318978">
+                 <name sortindex="1">7 Wonders</name>
+                 <yearpublished>2010</yearpublished>
+                 <numplays>0</numplays>
+               </item>
+               <item objecttype="thing" objectid="124742" subtype="boardgame" collid="113319037">
+                 <name sortindex="1">Android: Netrunner</name>
+                 <yearpublished>2012</yearpublished>
+                 <numplays>0</numplays>
+               </item>
+               <item objecttype="thing" objectid="359871" subtype="boardgame" collid="121983226">
+                 <name sortindex="1">Arcs</name>
+                 <yearpublished>2024</yearpublished>
+                 <numplays>0</numplays>
+               </item>
+             </items>
+           """
          }}
       end)
 
@@ -74,17 +75,18 @@ defmodule Core.BggGatewayTest do
       expect(Core.MockReqClient, :get, fn url, params, _headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == non_existent_user
+
         {:ok,
          %Req.Response{
            status: 200,
            body: """
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<errors>
-	<error>
-		<message>Invalid username specified</message>
-	</error>
-</errors>
-"""
+           <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+           <errors>
+           	<error>
+           		<message>Invalid username specified</message>
+           	</error>
+           </errors>
+           """
          }}
       end)
 
@@ -106,7 +108,8 @@ defmodule Core.BggGatewayTest do
         {:error, %RuntimeError{message: "Connection timeout"}}
       end)
 
-      assert {:error, %RuntimeError{message: "Connection timeout"}} = BggGateway.collection("testuser")
+      assert {:error, %RuntimeError{message: "Connection timeout"}} =
+               BggGateway.collection("testuser")
     end
 
     test "returns :failed_to_parse_xml for malformed XML" do
@@ -146,6 +149,7 @@ defmodule Core.BggGatewayTest do
         assert params["own"] == "1"
         assert params["stats"] == "1"
         assert params["subtype"] == "boardgame"
+
         {:ok,
          %Req.Response{
            status: 200,
@@ -157,7 +161,8 @@ defmodule Core.BggGatewayTest do
          }}
       end)
 
-      assert {:ok, _collection} = BggGateway.collection("testuser", own: 1, stats: 1, subtype: "boardgame")
+      assert {:ok, _collection} =
+               BggGateway.collection("testuser", own: 1, stats: 1, subtype: "boardgame")
     end
 
     test "filters out nil values from request parameters" do
@@ -168,6 +173,7 @@ defmodule Core.BggGatewayTest do
         # nil values should be filtered out
         refute Map.has_key?(params, "stats")
         refute Map.has_key?(params, "subtype")
+
         {:ok,
          %Req.Response{
            status: 200,
@@ -179,24 +185,33 @@ defmodule Core.BggGatewayTest do
          }}
       end)
 
-      assert {:ok, _collection} = BggGateway.collection("testuser", own: 1, stats: nil, subtype: nil)
+      assert {:ok, _collection} =
+               BggGateway.collection("testuser", own: 1, stats: nil, subtype: nil)
     end
 
     test "returns error for invalid collection request parameters" do
       # Invalid rating value (must be 1-10)
-      assert {:error, {:invalid_collection_request, errors}} = BggGateway.collection("testuser", rating: 15)
+      assert {:error, {:invalid_collection_request, errors}} =
+               BggGateway.collection("testuser", rating: 15)
+
       assert Keyword.has_key?(errors, :rating)
 
       # Invalid subtype
-      assert {:error, {:invalid_collection_request, errors}} = BggGateway.collection("testuser", subtype: "invalidtype")
+      assert {:error, {:invalid_collection_request, errors}} =
+               BggGateway.collection("testuser", subtype: "invalidtype")
+
       assert Keyword.has_key?(errors, :subtype)
 
       # Invalid wishlistpriority (must be 1-5)
-      assert {:error, {:invalid_collection_request, errors}} = BggGateway.collection("testuser", wishlistpriority: 10)
+      assert {:error, {:invalid_collection_request, errors}} =
+               BggGateway.collection("testuser", wishlistpriority: 10)
+
       assert Keyword.has_key?(errors, :wishlistpriority)
 
       # Invalid date format
-      assert {:error, {:invalid_collection_request, errors}} = BggGateway.collection("testuser", modifiedsince: "invalid-date")
+      assert {:error, {:invalid_collection_request, errors}} =
+               BggGateway.collection("testuser", modifiedsince: "invalid-date")
+
       assert Keyword.has_key?(errors, :modifiedsince)
     end
 
@@ -205,6 +220,7 @@ defmodule Core.BggGatewayTest do
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == "testuser"
         assert params["modifiedsince"] == "2025-01-01"
+
         {:ok,
          %Req.Response{
            status: 200,
@@ -226,6 +242,7 @@ defmodule Core.BggGatewayTest do
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "68448,124742,359871"
         assert params["stats"] == "1"
+
         {:ok,
          %Req.Response{
            status: 200,
@@ -325,7 +342,10 @@ defmodule Core.BggGatewayTest do
       assert first_thing.type == "boardgame"
       assert first_thing.primary_name == "7 Wonders"
       assert first_thing.yearpublished == "2010"
-      assert first_thing.description == "You are the leader of one of the 7 great cities of the Ancient World."
+
+      assert first_thing.description ==
+               "You are the leader of one of the 7 great cities of the Ancient World."
+
       assert first_thing.thumbnail =~ "pic860217.jpg"
       assert first_thing.image =~ "pic860217.jpg"
       assert first_thing.minplayers == "2"
@@ -361,17 +381,18 @@ defmodule Core.BggGatewayTest do
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "999999999"
         assert params["stats"] == "1"
+
         {:ok,
          %Req.Response{
            status: 200,
            body: """
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<errors>
-	<error>
-		<message>Item not found</message>
-	</error>
-</errors>
-"""
+           <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+           <errors>
+           	<error>
+           		<message>Item not found</message>
+           	</error>
+           </errors>
+           """
          }}
       end)
 
@@ -431,6 +452,7 @@ defmodule Core.BggGatewayTest do
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "68448"
         assert params["stats"] == "1"
+
         {:ok,
          %Req.Response{
            status: 200,
@@ -456,6 +478,7 @@ defmodule Core.BggGatewayTest do
       expect(Core.MockReqClient, :get, fn url, params, _headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "68448,124742"
+
         {:ok,
          %Req.Response{
            status: 200,

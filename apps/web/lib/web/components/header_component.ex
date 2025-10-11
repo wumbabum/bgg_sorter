@@ -12,7 +12,9 @@ defmodule Web.Components.HeaderComponent do
           BggSorter
         </.link>
         <div class="global-header-nav">
-          <button phx-click="toggle_advanced_search" class="nav-link nav-button">Advanced Search</button>
+          <button phx-click="toggle_advanced_search" class="nav-link nav-button">
+            Advanced Search
+          </button>
           <div class="global-header-nav-search">
             <form phx-submit="search_collection">
               <input

@@ -8,24 +8,28 @@ defmodule Web.Components.PaginationComponent do
     <%= if @total_items > @items_per_page do %>
       <div class="pagination-container">
         <div class="pagination-info">
-          Showing <%= start_item(@current_page, @items_per_page) %>-<%= end_item(@current_page, @items_per_page, @total_items) %> of <%= @total_items %> games
+          Showing {start_item(@current_page, @items_per_page)}-{end_item(
+            @current_page,
+            @items_per_page,
+            @total_items
+          )} of {@total_items} games
         </div>
-        
+
         <div class="pagination-controls">
-          <button 
-            phx-click="prev_page" 
+          <button
+            phx-click="prev_page"
             disabled={@current_page == 1}
             class="pagination-btn"
           >
             ← Previous
           </button>
-          
+
           <span class="page-info">
-            Page <%= @current_page %> of <%= max_pages(@total_items, @items_per_page) %>
+            Page {@current_page} of {max_pages(@total_items, @items_per_page)}
           </span>
-          
-          <button 
-            phx-click="next_page" 
+
+          <button
+            phx-click="next_page"
             disabled={@current_page >= max_pages(@total_items, @items_per_page)}
             class="pagination-btn"
           >

@@ -3,7 +3,7 @@
 <div class="maincontent">
   <%= if @username do %>
     <div class="collection-header">
-      <h1 class="collection-title">Collection for <%= @username %></h1>
+      <h1 class="collection-title">Collection for {@username}</h1>
       <div class="collection-subtitle">Board game collection from BoardGameGeek</div>
     </div>
 
@@ -12,18 +12,15 @@
         <div class="loading-spinner">
           Loading collection...
         </div>
-
       <% @search_error -> %>
         <div class="error-message">
-          <p><strong>Error:</strong> <%= @search_error %></p>
+          <p><strong>Error:</strong> {@search_error}</p>
           <button phx-click="retry_search" class="retry-button">Retry</button>
         </div>
-
       <% Enum.empty?(@collection_items) -> %>
         <div class="error-message">
           <p>No games found in this collection.</p>
         </div>
-
       <% true -> %>
         <table class="collection">
           <thead>
