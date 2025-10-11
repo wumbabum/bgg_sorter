@@ -151,3 +151,7 @@ All endpoints return XML data. Common response elements include:
 - Implement appropriate delays between requests
 - Cache responses when possible
 - The API may return HTTP 202 (Accepted) for large requests that need processing time
+
+## Frontend Vision
+
+The web interface will use Phoenix LiveView to create a reactive board game collection browser. Users enter their BGG username to load their collection, then filter and sort games client-side by name, year, rating, number of players, and other attributes. Number of players should include any game that has a minimum number of players to maximum number of players that includes the number entered on the form. Clicking any game opens a modal with detailed information, statistics, and images loaded asynchronously. The interface will feature clean responsive design, fast filtering, graceful error handling with retry options, and caching of loaded game details for optimal performance. LiveView's server-side state management and WebSocket reactivity will provide seamless real-time updates while maintaining accessibility standards.

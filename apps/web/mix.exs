@@ -49,6 +49,7 @@ defmodule Web.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
+      {:tidewave, "~> 0.5.0", only: :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.2.0",

@@ -8,6 +8,8 @@ defmodule Web.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      # Start the PubSub system
+      {Phoenix.PubSub, name: Web.PubSub},
       # Start a worker by calling: Web.Worker.start_link(arg)
       # {Web.Worker, arg},
       # Start to serve requests, typically the last entry

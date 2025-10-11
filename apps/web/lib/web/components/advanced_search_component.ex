@@ -1,0 +1,125 @@
+defmodule Web.Components.AdvancedSearchComponent do
+  @moduledoc "Advanced search component for filtering board game collections."
+
+  use Phoenix.Component
+  alias Web.Components.AdvancedSearchInputComponent
+
+  def advanced_search_form(assigns) do
+    ~H"""
+    <div class="advanced-search-container">
+      <div class="search-header">
+        <h1 class="collection-title">Advanced Collection Search</h1>
+        <div class="collection-subtitle">Filter and search through BoardGameGeek collections</div>
+      </div>
+      <form phx-submit="advanced_search" class="advanced-search-form">
+        <table class="advanced-search-table">
+          <tbody>
+            <!-- Username Field -->
+            <AdvancedSearchInputComponent.text_input
+              id="search-username"
+              name="username"
+              label="BGG Username"
+              value={@username || ""}
+              placeholder="Enter username to search their collection"
+              size="35"
+            />
+
+            <!-- Board Game Name -->
+            <AdvancedSearchInputComponent.text_input
+              id="search-name"
+              name="primary_name"
+              label="Board Game Name"
+              value={@filters[:primary_name] || ""}
+              placeholder="Search by game name"
+              size="35"
+            />
+
+            <!-- Year Published Range -->
+            <AdvancedSearchInputComponent.range_input
+              id="search-year"
+              name="yearpublished"
+              label="Year Published"
+              min_value={@filters[:yearpublished_min] || ""}
+              max_value={@filters[:yearpublished_max] || ""}
+            />
+
+            <!-- Number of Players -->
+            <AdvancedSearchInputComponent.player_select
+              selected_players={@filters[:players] || ""}
+            />
+
+            <!-- Playing Time Range -->
+            <AdvancedSearchInputComponent.range_input
+              id="search-playtime"
+              name="playingtime"
+              label="Playing Time (minutes)"
+              min_value={@filters[:playingtime_min] || ""}
+              max_value={@filters[:playingtime_max] || ""}
+            />
+
+            <!-- Minimum Age -->
+            <AdvancedSearchInputComponent.number_input
+              id="search-minage"
+              name="minage"
+              label="Maximum Minimum Age"
+              value={@filters[:minage] || ""}
+              placeholder="Age in years"
+              suffix="years or younger"
+            />
+
+            <!-- User Rating (Minimum) -->
+            <AdvancedSearchInputComponent.number_input
+              id="search-rating"
+              name="average"
+              label="Minimum User Rating"
+              value={@filters[:average] || ""}
+              placeholder="Rating (1-10)"
+              suffix="or higher"
+            />
+
+            <!-- Maximum BGG Rank -->
+            <AdvancedSearchInputComponent.number_input
+              id="search-rank"
+              name="rank"
+              label="Maximum BGG Rank"
+              value={@filters[:rank] || ""}
+              placeholder="Rank number"
+              suffix="or better (lower number)"
+            />
+
+            <!-- Weight Range (1-5) -->
+            <AdvancedSearchInputComponent.range_input
+              id="search-weight"
+              name="averageweight"
+              label="Weight (1-5)"
+              min_value={@filters[:averageweight_min] || ""}
+              max_value={@filters[:averageweight_max] || ""}
+              suffix="(1 Light - 5 Heavy)"
+            />
+
+            <!-- Game Description -->
+            <AdvancedSearchInputComponent.text_input
+              id="search-description"
+              name="description"
+              label="Description Contains"
+              value={@filters[:description] || ""}
+              placeholder="Search within game descriptions"
+              size="35"
+            />
+
+          </tbody>
+        </table>
+
+        <div class="advanced-search-buttons">
+          <button type="submit" class="advanced-search-submit">
+            Search Collection
+          </button>
+          <button type="button" phx-click="clear_filters" class="clear-button">
+            Clear All Filters
+          </button>
+        </div>
+      </form>
+    </div>
+    """
+  end
+end

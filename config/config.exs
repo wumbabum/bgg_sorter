@@ -22,15 +22,6 @@ config :core, :bgg_req_client, Core.BggGateway.ReqClient
 config :core,
   ecto_repos: [Core.Repo]
 
-# Configures the mailer
-#
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
-#
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
-config :core, Core.Mailer, adapter: Swoosh.Adapters.Local
-
 config :web,
   generators: [context_app: false]
 
@@ -68,47 +59,6 @@ config :tailwind,
 
 config :web,
   generators: [timestamp_type: :utc_datetime]
-
-# Configures the endpoint
-config :web, WebWeb.Endpoint,
-  url: [host: "localhost"],
-  adapter: Bandit.PhoenixAdapter,
-  render_errors: [
-    formats: [html: WebWeb.ErrorHTML, json: WebWeb.ErrorJSON],
-    layout: false
-  ],
-  pubsub_server: Web.PubSub,
-  live_view: [signing_salt: "X3vUtUaY"]
-
-# Configures the mailer
-#
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
-#
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
-config :web, Web.Mailer, adapter: Swoosh.Adapters.Local
-
-# Configure esbuild (the version is required)
-config :esbuild,
-  version: "0.25.4",
-  web: [
-    args:
-      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
-    cd: Path.expand("../apps/web/assets", __DIR__),
-    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
-  ]
-
-# Configure tailwind (the version is required)
-config :tailwind,
-  version: "4.1.7",
-  web: [
-    args: ~w(
-      --input=assets/css/app.css
-      --output=priv/static/assets/css/app.css
-    ),
-    cd: Path.expand("../apps/web", __DIR__)
-  ]
 
 # Configures Elixir's Logger
 config :logger, :default_formatter,

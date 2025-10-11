@@ -17,7 +17,9 @@ defmodule Web.Router do
   scope "/", Web do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", CollectionLive, :index
+    live "/collection", CollectionLive, :index  # Home page with optional advanced search
+    live "/collection/:username", CollectionLive, :show
   end
 
   # Other scopes may use custom stacks.
