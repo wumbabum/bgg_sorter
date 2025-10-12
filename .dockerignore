@@ -1,0 +1,61 @@
+# Development files
+.git
+.gitignore
+README.md
+WARP.md
+memory_bank/
+
+# Elixir build artifacts
+_build/
+deps/
+*.ez
+
+# Phoenix artifacts
+apps/web/priv/static/assets/
+apps/web/assets/node_modules/
+apps/web/assets/.npm/
+
+# Test files
+test/
+apps/*/test/
+*.coverdata
+cover/
+
+# Documentation
+doc/
+docs/
+
+# Environment files
+.env
+.env.*
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Docker files (but include Dockerfile itself)
+.dockerignore
+docker-compose.yml
+docker-compose.override.yml
+
+# Development database
+*.db
+*.sqlite3
+
+# Compiled assets in development
+apps/web/priv/static/cache_manifest.json

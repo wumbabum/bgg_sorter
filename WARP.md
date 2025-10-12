@@ -1344,3 +1344,303 @@ Complete database-backed caching system with intelligent freshness detection, ra
 - **User Experience**: Faster page loads, accurate search results, and persistent UI state
 
 **Status**: ✅ **PHASES 1-5 COMPLETE** - BGG Data Caching System fully implemented with comprehensive testing, performance monitoring, and seamless user experience. Critical pagination state preservation bug fixed. System ready for production use with optimal performance characteristics.
+
+## Docker & Fly.io Deployment Plan 🚧 PLANNED
+
+### Overview
+
+Plan to containerize the BggSorter Phoenix umbrella application and deploy to Fly.io platform for public internet access. The application requires a PostgreSQL database for the caching system and proper configuration for production deployment.
+
+### Architecture Requirements
+
+**Application Components:**
+- **Core App**: BGG API client, caching system, database schemas
+- **Web App**: Phoenix LiveView interface, static assets
+- **Database**: PostgreSQL for Thing caching with 1-week TTL
+- **External APIs**: BoardGameGeek XML API2 integration
+
+**Production Environment Needs:**
+- **Database**: PostgreSQL with proper indexes for cache performance
+- **Secrets**: SECRET_KEY_BASE for Phoenix session signing
+- **Networking**: HTTP/HTTPS access with IPv6 support
+- **Caching**: Database-backed caching system for BGG API responses
+- **Rate Limiting**: 1-second delays between BGG API chunk requests
+
+### Implementation Plan
+
+#### Phase 1: Docker Configuration ✅ PLANNED
+
+**1.1 Multi-Stage Dockerfile**
+- **File**: `Dockerfile`
+- **Base Images**: 
+  - Build stage: `hexpm/elixir:1.15.6-erlang-26.1.2-alpine-3.18.4`
+  - Runtime stage: `alpine:3.18.4`
+- **Build Strategy**: Multi-stage build for minimal production image size
+- **Asset Compilation**: Static assets built during Docker build process
+
+**1.2 Docker Environment Configuration**
+- **File**: `.dockerignore`
+- **Exclusions**: Development files, test data, build artifacts, node_modules
+- **Inclusions**: Source code, configuration files, database migrations
+
+**1.3 Production Dependencies**
+- **Umbrella App**: Both Core and Web apps included in single container
+- **Database Client**: PostgreSQL adapter with proper connection pooling
+- **Asset Pipeline**: Compiled CSS/JS assets with Phoenix digest
+- **Release Configuration**: Elixir releases for production deployment
+
+#### Phase 2: Fly.io Platform Configuration ✅ PLANNED
+
+**2.1 Fly Application Setup**
+- **File**: `fly.toml`
+- **App Configuration**: 
+  - App name: `bgg-sorter` (or user preference)
+  - Primary region: User's preferred region
+  - Build configuration with Dockerfile
+  - HTTP service on port 7384 (current config)
+
+**2.2 Database Integration**
+- **Fly PostgreSQL**: Create attached Fly Postgres cluster
+- **Connection**: DATABASE_URL environment variable configuration
+- **Migrations**: Run database migrations during deployment
+- **Performance**: Proper indexes for Thing schema (id, last_cached, type, primary_name)
+
+**2.3 Environment Variables**
+- **SECRET_KEY_BASE**: Generate and set via `fly secrets set`
+- **DATABASE_URL**: Automatically configured by Fly Postgres attachment
+- **PHX_HOST**: Set to Fly.io app domain
+- **PORT**: Standard Fly.io port configuration (internal port mapping)
+
+#### Phase 3: Production Optimizations ✅ PLANNED
+
+**3.1 Performance Configuration**
+- **Database Connection Pool**: Configure for Fly.io resource limits
+- **Phoenix Endpoint**: Proper IPv6 and hostname configuration
+- **Asset Serving**: Static file serving with proper cache headers
+- **Logging**: Production logging configuration for Fly.io environment
+
+**3.2 BGG API Integration**
+- **Rate Limiting**: Maintain 1-second delays between API chunks
+- **Cache Strategy**: 1-week TTL caching system fully operational
+- **Error Resilience**: Graceful handling of BGG API failures
+- **Monitoring**: Log BGG API usage and cache performance metrics
+
+**3.3 Security & Reliability**
+- **Health Checks**: Proper health check endpoint for Fly.io
+- **HTTPS**: Automatic TLS certificates via Fly.io
+- **Resource Limits**: Appropriate memory and CPU allocation
+- **Graceful Shutdown**: Proper application shutdown handling
+
+#### Phase 4: Deployment Pipeline ✅ PLANNED
+
+**4.1 Initial Deployment**
+```bash
+# Install Fly CLI and authenticate
+fly auth login
+
+# Initialize Fly app (generates fly.toml)
+fly apps create bgg-sorter
+
+# Create and attach PostgreSQL database
+fly postgres create --name bgg-sorter-db
+fly postgres attach --app bgg-sorter bgg-sorter-db
+
+# Set required secrets
+fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret)
+
+# Deploy application
+fly deploy
+
+# Run database migrations
+fly ssh console --pty -C "/app/bin/bgg_sorter eval 'Core.Release.migrate'"
+```
+
+**4.2 Configuration Files Created**
+- `Dockerfile` - Multi-stage containerization
+- `fly.toml` - Fly.io application configuration
+- `.dockerignore` - Docker build exclusions
+- `lib/core/release.ex` - Database migration helper
+
+**4.3 Release Preparation**
+- **Database Migrations**: All existing migrations deployable
+- **Asset Compilation**: CSS and JavaScript properly built
+- **Configuration Validation**: All production configs validated
+- **Health Checks**: Application startup verification
+
+### File Structure Changes
+
+```
+bgg_sorter/
+├── Dockerfile                           # Multi-stage container build
+├── .dockerignore                        # Docker build exclusions
+├── fly.toml                            # Fly.io platform configuration
+├── lib/core/release.ex                 # Database migration utilities
+├── config/
+│   ├── prod.exs                        # Updated production config
+│   └── runtime.exs                     # Environment variable handling
+└── [existing application structure]
+```
+
+### Dockerfile Strategy
+
+**Multi-Stage Build Pattern:**
+```dockerfile
+# Stage 1: Build environment
+FROM hexpm/elixir:1.15.6-erlang-26.1.2-alpine-3.18.4 AS build
+# Install build dependencies, compile application
+
+# Stage 2: Runtime environment  
+FROM alpine:3.18.4 AS app
+# Install runtime dependencies only, copy compiled release
+```
+
+**Benefits:**
+- **Small Image Size**: Runtime image excludes build tools and dependencies
+- **Fast Startup**: Pre-compiled Elixir release with minimal overhead
+- **Security**: Minimal attack surface in production container
+- **Caching**: Docker layer caching for faster rebuilds
+
+### Fly.io Configuration
+
+**Platform Features Utilized:**
+- **Global Load Balancing**: Anycast for worldwide accessibility
+- **Automatic HTTPS**: TLS certificates managed by Fly.io
+- **PostgreSQL Integration**: Managed database with automatic backups
+- **Private Networking**: Secure database connections
+- **Health Monitoring**: Application health checks and restart policies
+- **Secrets Management**: Secure environment variable handling
+
+**Resource Allocation:**
+- **Memory**: 512MB-1GB depending on usage patterns
+- **CPU**: Single shared CPU sufficient for BGG API rate limiting
+- **Storage**: Database storage for caching system
+- **Regions**: Deploy in user's preferred region for optimal performance
+
+### Production Environment Variables
+
+**Required Secrets:**
+```bash
+SECRET_KEY_BASE=<generated-phoenix-secret>
+DATABASE_URL=<fly-postgres-connection>
+PHX_HOST=<app-name>.fly.dev
+PORT=7384
+POOL_SIZE=10
+```
+
+**Optional Configuration:**
+```bash
+ECTO_IPV6=true                          # Enable IPv6 database connections
+PHX_SERVER=true                         # Enable Phoenix server
+```
+
+### Migration & Release Management
+
+**Database Migration Strategy:**
+- **Migration Runner**: Create `Core.Release.migrate/0` function
+- **Deployment Process**: Run migrations during Fly.io deployment
+- **Zero-Downtime**: Backward-compatible migrations for rolling updates
+- **Rollback Safety**: Reversible migrations for safe rollbacks
+
+**Release Configuration:**
+```elixir
+# mix.exs releases configuration
+releases: [
+  bgg_sorter: [
+    applications: [core: :permanent, web: :permanent],
+    include_executables_for: [:unix],
+    steps: [:assemble, :tar]
+  ]
+]
+```
+
+### Performance & Monitoring
+
+**Expected Performance Characteristics:**
+- **Cache Hit Rate**: >90% for repeat BGG username lookups
+- **API Rate Compliance**: 1-second delays between BGG API chunks
+- **Database Performance**: Sub-millisecond cache lookups
+- **Memory Usage**: <512MB under normal load
+- **Response Times**: <100ms for cached collections, <2s for new collections
+
+**Monitoring Strategy:**
+- **Fly.io Metrics**: CPU, memory, and request metrics
+- **Application Logging**: BGG API usage and cache performance
+- **Database Monitoring**: Connection pool and query performance
+- **Health Checks**: Regular application health verification
+
+### Security Considerations
+
+**Container Security:**
+- **Non-Root User**: Application runs as non-root user in container
+- **Minimal Base Image**: Alpine Linux for reduced attack surface
+- **Secret Management**: No secrets in Docker images or version control
+- **Network Security**: Private networking for database connections
+
+**Application Security:**
+- **Input Validation**: All user inputs validated and sanitized
+- **HTTPS Only**: Automatic TLS termination at Fly.io edge
+- **Rate Limiting**: BGG API rate limiting protects against abuse
+- **Error Handling**: Graceful error handling without information disclosure
+
+### Deployment Workflow
+
+**Phase-by-Phase Deployment:**
+1. **Phase 1**: Create Docker configuration files
+2. **Phase 2**: Set up Fly.io application and PostgreSQL database
+3. **Phase 3**: Configure production environment variables
+4. **Phase 4**: Deploy and validate application functionality
+5. **Phase 5**: Monitor performance and optimize as needed
+
+**Continuous Deployment:**
+- **Development Workflow**: Local development with Docker Compose
+- **Staging Environment**: Optional staging deployment for testing
+- **Production Deploy**: `fly deploy` command for production updates
+- **Rollback Strategy**: `fly releases rollback` for quick rollbacks
+
+**Cost Considerations:**
+- **Fly.io App**: ~$5-10/month for small application
+- **PostgreSQL**: ~$15/month for development database
+- **Traffic**: Minimal cost for typical board game collection usage
+- **Total**: ~$20-25/month for production deployment
+
+### Development Experience
+
+**Local Development:**
+- **Docker Compose**: Optional local containerized development
+- **Native Development**: Continue using `mix phx.server` locally
+- **Database**: Local PostgreSQL for development and testing
+- **Testing**: Full test suite continues to work unchanged
+
+**Deployment Experience:**
+- **Single Command**: `fly deploy` for complete application deployment
+- **Fast Builds**: Docker layer caching for rapid iteration
+- **Live Logs**: `fly logs` for real-time application monitoring
+- **SSH Access**: `fly ssh console` for debugging if needed
+
+**Status**: ✅ **DOCKER IMPLEMENTATION COMPLETE** - Application successfully dockerized with multi-stage builds, zero-configuration startup, and optimized for production deployment. Ready for Fly.io deployment.
+
+### October 12, 2025 - Docker Implementation Complete ✅ COMPLETED
+
+#### Dockerization Success
+- **Multi-Stage Dockerfile**: Optimized build with official Elixir 1.15.6 base image
+- **Asset Compilation**: Successfully resolved tailwind/esbuild compatibility issues with glibc
+- **Zero Configuration**: `docker compose up` or `podman compose up` works out-of-the-box
+- **Production Ready**: Minimal runtime image with only essential dependencies
+
+#### Files Created
+- `Dockerfile` - Multi-stage build with Ubuntu runtime compatibility
+- `docker-compose.yml` - Zero-config PostgreSQL + app setup
+- `.dockerignore` - Optimized build context exclusions
+- `apps/core/lib/core/release.ex` - Database migration helpers
+- `.tool-versions` - asdf version management (Erlang 26.1.2, Elixir 1.15.6-otp-26)
+
+#### Technical Solutions Implemented
+- **Tailwind Compatibility**: Resolved musl/glibc binary compatibility with official Elixir image
+- **Asset Pipeline**: esbuild + tailwind compilation working correctly in containerized environment
+- **Database Integration**: Automatic migrations and health checks
+- **Development Experience**: One-command startup with persistent data
+
+#### Ready for Next Phase
+- **Phase 2**: Fly.io Platform Configuration (fly.toml already created)
+- **Phase 3**: Production deployment and optimization
+- **Phase 4**: Monitoring and scaling configuration

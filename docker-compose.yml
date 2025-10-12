@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bgg_sorter_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "ecto://postgres:postgres@db:5432/bgg_sorter_dev"
+      SECRET_KEY_BASE: "bgg_sorter_development_secret_key_base_64_chars_minimum_length_req"
+      PHX_HOST: "localhost"
+      PHX_SERVER: "true"
+      MIX_ENV: "prod"
+      PORT: "7384"
+      POOL_SIZE: "10"
+      ELIXIR_ERL_OPTIONS: "+fnu"
+      LANG: "en_US.UTF-8"
+      LC_ALL: "en_US.UTF-8"
+    ports:
+      - "7384:7384"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "./bin/bgg_sorter eval 'Core.Release.migrate()' &&
+             ./bin/bgg_sorter start"
+
+volumes:
+  postgres_data:

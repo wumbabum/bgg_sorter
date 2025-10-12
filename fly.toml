@@ -1,0 +1,44 @@
+# fly.toml app configuration file generated for bgg-sorter
+
+app = "bgg-sorter"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PHX_HOST = "bgg-sorter.fly.dev"
+  PORT = "7384"
+  MIX_ENV = "prod"
+  PHX_SERVER = "true"
+  POOL_SIZE = "10"
+
+[http_service]
+  internal_port = 7384
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+[[statics]]
+  guest_path = "/app/lib/web-*/priv/static"
+  url_prefix = "/static/"
+
+[deploy]
+  release_command = "./bin/bgg_sorter eval Core.Release.migrate()"
+
+[[processes]]
+  app = "./bin/bgg_sorter start"
