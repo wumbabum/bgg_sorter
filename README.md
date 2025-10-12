@@ -2,6 +2,9 @@
 
 A Phoenix LiveView application that interfaces with the BoardGameGeek API to browse, filter, and sort board game collections. Features advanced search capabilities, real-time filtering, game detail modals, and a database-backed caching system for optimal performance.
 
+## Use it live:
+https://bgg-sorter.fly.dev/
+
 ## Stack
 - **Elixir 1.15.6+** with **Erlang 26.1.2+**
 - **PostgreSQL 15+** (for caching system)
