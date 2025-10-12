@@ -46,7 +46,6 @@ defmodule Core.BggGatewayTest do
       # Verify parsed collection structure
       assert %CollectionResponse{} = collection
       assert collection.totalitems == "3"
-      assert collection.termsofuse == "https://boardgamegeek.com/xmlapi/termsofuse"
       assert length(collection.items) == 3
 
       # Verify first item

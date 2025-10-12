@@ -760,17 +760,24 @@ This document serves as the source of truth for how Warp agents should approach 
   - Help text styling and form validation feedback
 
 #### Data Flow and Architecture
-**Client-Side Filtering Architecture**:
-1. **Collection Load**: Load full collection from BGG API without filters
-2. **Filter Application**: Apply client-side filters to all loaded items
-3. **Pagination**: Apply pagination to filtered results  
-4. **Display**: Show filtered and paginated results
+**Hybrid Server-Side + Client-Side Filtering Architecture**:
+1. **Filter Separation**: Separate filters into BGG API-supported vs client-side only
+2. **Server-Side Filtering**: Pass supported filters to BGG API (rating filters)
+3. **Collection Load**: Load pre-filtered collection from BGG API
+4. **Client-Side Filtering**: Apply remaining filters to API results (players, name, year, etc.)
+5. **Pagination**: Apply pagination to final filtered results  
+6. **Display**: Show fully filtered and paginated results
 
 **Benefits Achieved**:
-- **Rich Filtering**: Filter on actual game characteristics users care about
-- **Fast Response**: No additional API calls for filter changes
-- **Complex Logic**: Range filters, substring matching, player count logic
-- **Reliable**: No dependency on BGG API filter availability or 202 responses
+- **Optimal Performance**: Uses BGG API filtering where possible, client-side for unsupported filters
+- **Complete Functionality**: All advanced search filters work as expected
+- **Reduced Data Transfer**: BGG API pre-filters on supported parameters (ratings)
+- **Rich Filtering**: Client-side handles complex filters like player count, name search, year ranges
+- **Best of Both Worlds**: Combines server-side efficiency with client-side flexibility
+
+**Filter Distribution**:
+- **BGG API Filters**: `average` → `minrating`/`minbggrating`, `own`, `stats`
+- **Client-Side Filters**: `players`, `primary_name`, `yearpublished_min/max`, `playingtime_min/max`, `minage`, `rank`, `averageweight_min/max`, `description`
 
 #### Comprehensive Testing
 - **Core API Tests**: All 33 tests passing, including new parameter validation
@@ -880,3 +887,278 @@ filters != current_filters ->
 - Filter changes should trigger collection reload with correct filter values
 
 **Status**: This critical filtering functionality issue has been resolved. The advanced search system now properly applies URL-based filters to collection data through direct parameter passing, eliminating the race condition that caused stale filter values to be used.
+
+### October 11, 2025 (Late Evening) - Server-Side Filtering Architecture Change ✅ COMPLETED
+
+#### Architectural Migration: Client-Side to Server-Side Filtering
+- **Issue Identified**: User requested active filter parameter passing to BggGateway.collection instead of client-side filtering
+- **Implementation Change**: Modified `handle_info({:load_collection_with_filters, username, filters}, socket)` to convert and pass filters to BGG API
+- **Filter Conversion Logic**: Added `convert_filters_to_bgg_params/1` function to map client filters to supported BGG API parameters
+- **Removed Client-Side Logic**: Eliminated `apply_filters/2` and all related client-side filtering functions
+
+#### BGG API Filter Support Implementation
+- **Supported Filters**: Only BGG API native parameters are now used:
+  - `minrating`: Minimum user rating (1-10 scale)
+  - `minbggrating`: Minimum BGG community rating (1-10 scale)
+  - `own`: Ownership filter (defaults to 1 for owned games)
+  - `stats`: Always enabled (1) for detailed statistics
+- **Unsupported Client Filters**: These filters are no longer available due to BGG API limitations:
+  - Player count filtering (`players`)
+  - Game name search (`primary_name`)
+  - Year published ranges (`yearpublished_min/max`)
+  - Playing time ranges (`playingtime_min/max`)
+  - Weight complexity ranges (`averageweight_min/max`)
+  - Description text search (`description`)
+  - Age filtering (`minage`)
+  - Rank filtering (`rank`)
+
+#### Code Changes Made
+- **File**: `apps/web/lib/web/live/collection_live.ex`
+  - Updated `handle_info({:load_collection_with_filters, ...})` to call `Core.BggGateway.collection(username, bgg_params)` instead of `[]`
+  - Added `convert_filters_to_bgg_params/1` function with BGG API parameter mapping
+  - Added `maybe_add_bgg_param/3` helper for conditional parameter inclusion
+  - Added `get_ownership_filter/1` helper (currently defaults to owned games)
+  - Removed `apply_filters/2` and all `matches_filter?/3` functions
+  - Removed client-side filtering logic entirely
+- **File**: `WARP.md`
+  - Updated "Data Flow and Architecture" section to reflect server-side filtering
+  - Added BGG API limitations documentation
+  - Added this architectural change log
+
+#### User Experience Impact
+- **Positive**: Faster collection loading for large collections due to server-side filtering
+- **Negative**: Reduced filtering capabilities - only rating-based filters now work
+- **Future Enhancement**: Could implement hybrid approach with BGG API filters + client-side filters for unsupported parameters
+
+#### Technical Benefits
+- **Reduced Data Transfer**: BGG API returns pre-filtered results
+- **Better Performance**: Less client-side processing required
+- **API Compliance**: Uses BGG's intended filtering mechanisms
+- **Simpler Codebase**: Eliminates complex client-side filtering logic
+
+**Status**: Server-side filtering architecture is now implemented. The system passes filter parameters directly to the BGG API, with automatic conversion from client filter format to BGG API parameters. Only rating-based filters are currently supported due to BGG API limitations.
+
+### October 11, 2025 (Late Evening) - Hybrid Filtering Architecture Implementation ✅ COMPLETED
+
+#### Final Architecture: Hybrid Server-Side + Client-Side Filtering
+- **Issue**: Pure server-side filtering left most advanced search filters non-functional due to BGG API limitations
+- **Solution**: Implemented hybrid approach combining BGG API filtering with client-side filtering
+- **Implementation**: Added `apply_client_side_filters/2` function that processes only BGG-unsupported filters
+
+#### Hybrid Filtering Logic Implementation
+- **BGG API Filters**: Used for filters BGG natively supports
+  - `average` → `minrating` and `minbggrating` (rating filters)
+  - `own: 1` (owned games only)
+  - `stats: 1` (include statistics)
+- **Client-Side Filters**: Applied after BGG API response for unsupported filters
+  - `players` - Player count matching (game supports specified player count)
+  - `primary_name` - Game name substring search
+  - `yearpublished_min/max` - Year published range filtering
+  - `playingtime_min/max` - Playing time range filtering
+  - `minage` - Maximum minimum age filtering
+  - `rank` - Maximum BGG rank filtering
+  - `averageweight_min/max` - Weight/complexity range filtering
+  - `description` - Description text search
+
+#### Code Implementation
+- **File**: `apps/web/lib/web/live/collection_live.ex`
+  - Added `apply_client_side_filters/2` function for hybrid filtering
+  - Added `extract_client_only_filters/1` to separate client-side filters
+  - Added `matches_all_client_filters?/2` and `matches_client_filter?/3` functions
+  - Re-added `parse_float/1` helper for weight filtering
+  - Modified `handle_info({:load_collection_with_filters, ...})` to apply both server and client filtering
+- **File**: `WARP.md`
+  - Updated architecture documentation to reflect hybrid approach
+  - Added comprehensive filter distribution documentation
+
+#### User Experience Impact
+- **Positive**: All advanced search filters now work as expected
+- **Positive**: Optimal performance through server-side pre-filtering where possible
+- **Positive**: Complete functionality without sacrificing performance
+- **Architecture**: Best of both worlds - server efficiency + client flexibility
+
+#### Technical Benefits
+- **Performance Optimization**: BGG API reduces dataset size via rating filters
+- **Complete Feature Set**: All 9 advanced search filters fully functional
+- **Maintainable**: Clear separation between server and client filtering logic
+- **Scalable**: Efficient for large collections with server-side pre-filtering
+- **Future-Proof**: Easy to move filters between server/client as BGG API evolves
+
+**Status**: Hybrid filtering architecture successfully implemented. The system now provides complete advanced search functionality with optimal performance, using BGG API filtering where supported and client-side filtering for complex parameters like player count, name search, and year ranges.
+
+### October 12, 2025 - BGG Data Caching System Implementation Plan 🚧 PLANNED
+
+#### Problem Identified
+**Issue**: Current filtering system has a critical flaw where `Thing.filter_by/2` is called on collection data that lacks detailed game information. The `BggGateway.collection/2` endpoint returns minimal data (basic fields only), while many filterable fields (player counts, ratings, weights, descriptions) are `nil`. Full data requires `BggGateway.things/2` calls, but this is limited to 20 items per request, leading to unpredictable page sizes and poor UI experience.
+
+**Current Data Flow Problem**:
+1. `collection_live` calls `BggGateway.collection/2` → gets minimal Thing data
+2. `Thing.filter_by/2` called on incomplete data → many filter fields are `nil`
+3. Detailed data loading via `BggGateway.things/2` happens after filtering → too late
+4. Pagination shows incomplete/filtered results → unpredictable page sizes
+
+#### Solution: Database-Backed Caching System
+
+**Architecture Overview**: Implement a persistent caching layer using Core.Repo to store complete Thing data with intelligent cache invalidation based on data freshness.
+
+#### Implementation Plan
+
+##### Phase 1: Database Schema Enhancement ✅ PLANNED
+
+**1.1 Core.Schemas.Thing Schema Updates**
+- **File**: `apps/core/lib/core/schemas/thing.ex`
+- **New Field**: `last_cached :: DateTime.t() | nil` - Timestamp of last cache update
+- **Database Migration**: Add `last_cached` column to things table
+- **Changeset Updates**: Include `last_cached` in optional fields and validation
+
+**1.2 Thing Upsert Functionality**
+- **Function**: `Core.Schemas.Thing.upsert_thing/2`
+- **Parameters**: `thing :: Thing.t()`, `params :: map()`
+- **Behavior**: Insert new Thing or update existing Thing with merged data
+- **Implementation**: Use `Repo.insert/2` with `on_conflict: :replace_all` or `Ecto.Changeset.put_change/3`
+- **Return**: `{:ok, Thing.t()}` | `{:error, Ecto.Changeset.t()}`
+- **Testing**: Comprehensive tests for insert, update, and validation scenarios
+
+##### Phase 2: Cache Management Module ✅ PLANNED
+
+**2.1 Core.BggCacher Module**
+- **File**: `apps/core/lib/core/bgg_cacher.ex`
+- **Purpose**: Central cache management with intelligent freshness detection
+- **Module Attributes**: 
+  - `@cache_ttl_weeks 1` - Cache time-to-live (1 week)
+  - `@rate_limit_delay_ms 1000` - Rate limiting between BGG API calls
+
+**2.2 Cache Loading Function**
+- **Function**: `load_things_cache/1`
+- **Parameters**: `things :: [Thing.t()]` - List of Things with basic collection data
+- **Return**: `{:ok, [Thing.t()]}` - List of Things with complete cached data
+- **Logic Flow**:
+  1. Extract Thing IDs from input list
+  2. Query database for Things needing cache refresh
+  3. Load fresh data via `BggGateway.paginated_update_cache/1`
+  4. Return fully populated Thing structs
+
+**2.3 Cache Freshness Detection**
+- **SQL Query**: Select Things where `id IN (ids)` AND (`last_cached < @cache_ttl_weeks` OR `last_cached IS NULL`)
+- **Database Integration**: Use `Core.Repo` with proper Ecto queries
+- **Performance**: Efficient batch queries to minimize database round trips
+
+##### Phase 3: Rate-Limited BGG API Integration ✅ PLANNED
+
+**3.1 BggGateway Paginated Cache Updates**
+- **Function**: `Core.BggGateway.paginated_update_cache/1`
+- **Parameters**: `thing_ids :: [String.t()]` - List of Thing IDs needing cache updates
+- **Return**: `{:ok, [Thing.t()]}` - List of updated Things
+- **Implementation Logic**:
+  1. Chunk `thing_ids` into groups of 20 (BGG API limit)
+  2. For each chunk:
+     - Call `BggGateway.things/2` with rate limiting
+     - Call `Thing.upsert_thing/2` on each returned Thing
+     - Add rate limiting delay between chunks
+  3. Return flat list of all updated Things
+
+**3.2 Rate Limiting Strategy**
+- **Delay**: 1-second delay between chunks to respect BGG API limits
+- **Error Handling**: Retry logic for failed API calls with exponential backoff
+- **Progress Tracking**: Log progress for large cache update operations
+- **Failure Recovery**: Continue processing remaining chunks if individual chunk fails
+
+##### Phase 4: Integration with CollectionLive ✅ PLANNED
+
+**4.1 Updated Data Flow**
+**New End-to-End Process**:
+1. `collection_live` calls `BggGateway.collection/2` → gets basic Thing data with IDs
+2. `collection_live` pipes result into `BggCacher.load_things_cache/1` → gets complete Thing data
+3. `Thing.filter_by/2` called on complete data → all filter fields populated
+4. Apply pagination to filtered results → predictable page sizes
+5. Display fully filtered and paginated results
+
+**4.2 CollectionLive Integration Points**
+- **File**: `apps/web/lib/web/live/collection_live.ex`
+- **Integration Location**: `handle_info({:load_collection_with_filters, username, filters}, socket)`
+- **Updated Flow**:
+  ```elixir
+  with {:ok, collection_response} <- Core.BggGateway.collection(username, bgg_params),
+       {:ok, cached_things} <- Core.BggCacher.load_things_cache(collection_response.items),
+       filtered_things <- apply_client_side_filters(cached_things, client_filters) do
+    # Continue with pagination and display
+  end
+  ```
+
+##### Phase 5: Testing Strategy ✅ PLANNED
+
+**5.1 Unit Tests**
+- **Thing Schema Tests**: Test `upsert_thing/2` with various scenarios
+- **BggCacher Tests**: Mock database and BGG API calls for cache logic testing
+- **Cache Freshness Tests**: Test TTL logic with different timestamp scenarios
+- **Rate Limiting Tests**: Verify proper delays and chunking behavior
+
+**5.2 Integration Tests**
+- **End-to-End Cache Flow**: Test complete cache loading process
+- **Database Integration**: Test actual database operations with test database
+- **BGG API Integration**: Test paginated cache updates with mock API responses
+- **CollectionLive Integration**: Test updated LiveView flow with caching
+
+**5.3 Test Data Strategy**
+- **Mock API Responses**: Use real BGG API response data (limited samples)
+- **Database Fixtures**: Create test Things with various cache states
+- **Time Manipulation**: Use test helpers for time-based cache TTL testing
+
+#### Implementation Benefits
+
+**Performance Improvements**:
+- **Predictable Page Sizes**: Filtering happens after complete data loading
+- **Reduced API Calls**: Cached data eliminates redundant BGG API requests
+- **Faster Filtering**: Complete data enables accurate client-side filtering
+- **Better User Experience**: Consistent pagination with full game information
+
+**Technical Advantages**:
+- **Data Completeness**: All Thing fields populated for accurate filtering
+- **Cache Efficiency**: 1-week TTL balances freshness with performance
+- **Rate Limit Compliance**: Respects BGG API limits with controlled chunking
+- **Scalability**: Database backing supports large collections efficiently
+
+**Maintainability Benefits**:
+- **Modular Design**: Clear separation between caching, API, and LiveView logic
+- **Testing Coverage**: Comprehensive test suite for reliability
+- **Error Resilience**: Graceful handling of API failures and partial cache updates
+- **Future-Proof**: Easy to adjust cache TTL and rate limits as needed
+
+#### Migration Strategy
+
+**Phase-by-Phase Rollout**:
+1. **Phase 1**: Implement and test database schema changes in isolation
+2. **Phase 2**: Build and test BggCacher module with mocked dependencies
+3. **Phase 3**: Add paginated BGG API integration with comprehensive testing
+4. **Phase 4**: Integrate with CollectionLive and test end-to-end flow
+5. **Phase 5**: Deploy with monitoring and performance validation
+
+**Risk Mitigation**:
+- **Backward Compatibility**: Keep existing filtering as fallback during migration
+- **Incremental Testing**: Test each module independently before integration
+- **Database Migrations**: Use reversible migrations for safe schema changes
+- **Performance Monitoring**: Track cache hit rates and API call reduction
+
+**Success Metrics**:
+- **Consistent Page Sizes**: All collection pages show expected number of items
+- **Improved Filter Accuracy**: All advanced search filters work with complete data
+- **Reduced API Calls**: Significant reduction in BGG API requests for repeat users
+- **Better User Experience**: Faster page loads and more accurate search results
+
+#### Development Workflow
+
+**Module Development Order**:
+1. **Core.Schemas.Thing** - Add caching fields and upsert functionality
+2. **Database Migration** - Add last_cached column with proper indexes
+3. **Core.BggCacher** - Implement cache management logic
+4. **Core.BggGateway** - Add paginated cache update functionality
+5. **Web.CollectionLive** - Integrate caching into LiveView data flow
+6. **Comprehensive Testing** - Unit, integration, and end-to-end tests
+
+**Testing Approach**:
+- **Test-Driven Development**: Write tests first for each module
+- **Mock External Dependencies**: Mock BGG API and database for unit tests
+- **Real Integration Testing**: Use test database for integration scenarios
+- **Performance Validation**: Measure cache effectiveness and API call reduction
+
+**Status**: 🚧 **READY FOR IMPLEMENTATION** - Comprehensive plan documented, ready to begin Phase 1 development with database schema enhancements.

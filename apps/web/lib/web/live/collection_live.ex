@@ -3,6 +3,10 @@ defmodule Web.CollectionLive do
 
   use Web, :live_view
 
+  require Logger
+
+  alias Core.Schemas.{CollectionResponse, Thing}
+
   @impl true
   def mount(%{"username" => username} = params, _session, socket) do
     # Get page from URL query parameter, default to 1
@@ -170,17 +174,22 @@ defmodule Web.CollectionLive do
 
   @impl true
   def handle_info({:load_collection_with_filters, username, filters}, socket) do
-    # Load full collection without filters - we'll filter client-side
+    Logger.info("handle_info :load_collection_with_filters with filters #{inspect(filters)}")
+    # Convert client filters to BGG API parameters
+    bgg_params = convert_filters_to_bgg_params(filters)
+    Logger.info("Converted BGG params: #{inspect(bgg_params)}")
 
-    case Core.BggGateway.collection(username, []) do
-      {:ok, collection_response} ->
-        # Apply client-side filters if any are set
-        filtered_items = apply_filters(collection_response.items, filters)
-        total_items = length(filtered_items)
-
+    case Core.BggGateway.collection(username, bgg_params) do
+      {:ok, %CollectionResponse{items: items}} ->
+        # Apply client-side filtering for parameters not supported by BGG API
+        client_only_filters = extract_client_only_filters(filters)
+        client_filtered_items = Thing.filter_by(items, client_only_filters)
+        total_items = length(client_filtered_items)
+        Logger.info("Total items from BGG API: #{length(items)}")
+        Logger.info("Total items after client-side filtering: #{client_filtered_items |> length()}")
         socket =
           socket
-          |> assign(:all_collection_items, filtered_items)
+          |> assign(:all_collection_items, client_filtered_items)
           |> assign(:total_items, total_items)
           |> assign(:search_error, nil)
 
@@ -637,137 +646,64 @@ defmodule Web.CollectionLive do
     |> maybe_put_filter(:description, Map.get(params, "description"))
   end
 
-  # Apply client-side filters to collection items
-  defp apply_filters(items, filters) when filters == %{}, do: items
+  # Convert client-side filters to BGG API collection parameters
+  defp convert_filters_to_bgg_params(filters) when filters == %{}, do: [stats: 1]
 
-  defp apply_filters(items, filters) do
-    Enum.filter(items, &matches_all_filters?(&1, filters))
+  defp convert_filters_to_bgg_params(filters) do
+    # Start with default parameters
+    bgg_params = [stats: 1]
+
+    # Convert supported filters to BGG API parameters
+    bgg_params
+    |> maybe_add_bgg_param("minrating", Map.get(filters, :average))
+    |> maybe_add_bgg_param("minbggrating", Map.get(filters, :average))
+    |> maybe_add_bgg_param("own", get_ownership_filter(filters))
   end
 
-  # Check if an item matches all active filters
-  defp matches_all_filters?(item, filters) do
-    Enum.all?(filters, fn {key, value} ->
-      matches_filter?(item, key, value)
-    end)
-  end
+  # Helper to add BGG API parameter if filter value exists
+  defp maybe_add_bgg_param(params, _key, nil), do: params
+  defp maybe_add_bgg_param(params, _key, ""), do: params
 
-  # Individual filter matching functions
-  defp matches_filter?(item, :primary_name, search_term) do
-    String.contains?(String.downcase(item.primary_name || ""), String.downcase(search_term))
-  end
+  defp maybe_add_bgg_param(params, key, value) when key in ["minrating", "minbggrating"] do
+    case parse_integer(value) do
+      rating when is_integer(rating) and rating >= 1 and rating <= 10 ->
+        Keyword.put(params, String.to_atom(key), rating)
 
-  defp matches_filter?(item, :yearpublished_min, min_year) do
-    case {parse_integer(item.yearpublished), parse_integer(min_year)} do
-      {item_year, min_year_int} when is_integer(item_year) and is_integer(min_year_int) ->
-        item_year >= min_year_int
-
-      # Skip filter if data is invalid
       _ ->
-        true
+        params
     end
   end
 
-  defp matches_filter?(item, :yearpublished_max, max_year) do
-    case {parse_integer(item.yearpublished), parse_integer(max_year)} do
-      {item_year, max_year_int} when is_integer(item_year) and is_integer(max_year_int) ->
-        item_year <= max_year_int
-
-      _ ->
-        true
-    end
+  defp maybe_add_bgg_param(params, key, value) do
+    Keyword.put(params, String.to_atom(key), value)
   end
 
-  defp matches_filter?(item, :players, target_players) do
-    case {parse_integer(item.minplayers), parse_integer(item.maxplayers),
-          parse_integer(target_players)} do
-      {min_p, max_p, target}
-      when is_integer(min_p) and is_integer(max_p) and is_integer(target) ->
-        target >= min_p and target <= max_p
-
-      _ ->
-        true
-    end
+  # Determine ownership filter - default to owned games (own: 1)
+  defp get_ownership_filter(_filters) do
+    # For now, always filter to owned games as this is the most common use case
+    # Could be made configurable in the future
+    1
   end
 
-  defp matches_filter?(item, :playingtime_min, min_time) do
-    case {parse_integer(item.playingtime), parse_integer(min_time)} do
-      {item_time, min_time_int} when is_integer(item_time) and is_integer(min_time_int) ->
-        item_time >= min_time_int
-
-      _ ->
-        true
-    end
+  # Extract only the filters that need client-side processing (BGG API doesn't support)
+  defp extract_client_only_filters(filters) do
+    filters
+    |> Map.take([
+      :primary_name,
+      :yearpublished_min,
+      :yearpublished_max,
+      :players,
+      :playingtime_min,
+      :playingtime_max,
+      :minage,
+      :rank,
+      :averageweight_min,
+      :averageweight_max,
+      :description
+    ])
+    |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
+    |> Enum.into(%{})
   end
-
-  defp matches_filter?(item, :playingtime_max, max_time) do
-    case {parse_integer(item.playingtime), parse_integer(max_time)} do
-      {item_time, max_time_int} when is_integer(item_time) and is_integer(max_time_int) ->
-        item_time <= max_time_int
-
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(item, :minage, max_minage) do
-    case {parse_integer(item.minage), parse_integer(max_minage)} do
-      {item_minage, max_minage_int} when is_integer(item_minage) and is_integer(max_minage_int) ->
-        # Game min age should be <= filter (younger or same)
-        item_minage <= max_minage_int
-
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(item, :average, min_rating) do
-    case {parse_float(item.average), parse_float(min_rating)} do
-      {item_rating, min_rating_float} when is_float(item_rating) and is_float(min_rating_float) ->
-        item_rating >= min_rating_float
-
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(item, :rank, max_rank) do
-    case {parse_integer(item.rank), parse_integer(max_rank)} do
-      {item_rank, max_rank_int}
-      when is_integer(item_rank) and is_integer(max_rank_int) and item_rank > 0 ->
-        # Lower rank number is better
-        item_rank <= max_rank_int
-
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(item, :averageweight_min, min_weight) do
-    case {parse_float(item.averageweight), parse_float(min_weight)} do
-      {item_weight, min_weight_float} when is_float(item_weight) and is_float(min_weight_float) ->
-        item_weight >= min_weight_float
-
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(item, :averageweight_max, max_weight) do
-    case {parse_float(item.averageweight), parse_float(max_weight)} do
-      {item_weight, max_weight_float} when is_float(item_weight) and is_float(max_weight_float) ->
-        item_weight <= max_weight_float
-
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(item, :description, search_term) do
-    String.contains?(String.downcase(item.description || ""), String.downcase(search_term))
-  end
-
-  # Skip unknown filters
-  defp matches_filter?(_item, _key, _value), do: true
 
   # Add non-empty values to filter map
   defp maybe_put_filter(filters, _key, value) when value in [nil, ""], do: filters
@@ -794,6 +730,7 @@ defmodule Web.CollectionLive do
   defp parse_float(value) when is_float(value), do: value
   defp parse_float(value) when is_integer(value), do: value * 1.0
   defp parse_float(_), do: nil
+
 
   # Helper function to parse URL parameters into filters
   defp parse_url_filters(params) do
