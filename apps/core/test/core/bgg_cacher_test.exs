@@ -6,6 +6,8 @@ defmodule Core.BggCacherTest do
   alias Core.BggCacher
   alias Core.Schemas.Thing
   
+  @moduletag :capture_log
+  
   # Make sure mocks are verified when the test exits
   setup :verify_on_exit!
 

@@ -81,23 +81,23 @@ defmodule Core.Schemas.Thing do
       |> Enum.reject(fn {key, _val} -> key in [:__meta__, :inserted_at, :updated_at] end)
       |> Enum.into(%{})
       |> stringify_keys()
-    
+
     upsert_thing(params)
   end
 
   def upsert_thing(params) when is_map(params) do
-    # Ensure last_cached is set with current timestamp  
+    # Ensure last_cached is set with current timestamp
     current_time = DateTime.utc_now()
-    params_with_timestamp = 
+    params_with_timestamp =
       params
       |> stringify_keys()
       |> Map.put("last_cached", current_time)
-    
+
     changeset = changeset(%__MODULE__{}, params_with_timestamp)
-    
+
     case changeset.valid? do
       true ->
-        Core.Repo.insert(changeset, 
+        Core.Repo.insert(changeset,
           on_conflict: {:replace_all_except, [:id, :inserted_at]},
           conflict_target: :id
         )
@@ -116,9 +116,6 @@ defmodule Core.Schemas.Thing do
   @doc "Filters a list of things based on the provided filter criteria."
   @spec filter_by([t()], map()) :: [t()]
   def filter_by(things, filters \\ %{}) do
-
-    first_five = Enum.take(things, 5)
-    Logger.debug("First five things before filtering: #{inspect(first_five)}")
     # Only process filters that are not nil or empty strings
     active_filters =
       filters
