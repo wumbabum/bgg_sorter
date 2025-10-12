@@ -126,30 +126,34 @@ defmodule Web.CollectionLive do
         send(self(), {:load_collection, username})
         {:noreply, socket}
 
-      # Same username, different page
-      page != current_page ->
-        socket = assign(socket, :current_page, page)
-        load_current_page(socket)
-
-      # Same username and page, but advanced_search parameter changed
-      advanced_search != socket.assigns.advanced_search ->
-        socket =
-          socket
-          |> assign(:advanced_search, advanced_search)
-          |> assign(:filters, filters)
-
-        {:noreply, socket}
-
-      # Same username and page, but filters changed
+      # Filters changed (but same username), reload collection with new filters
       filters != current_filters ->
         socket =
           socket
           |> assign(:filters, filters)
+          |> assign(:current_page, page)  # Also update page
+          |> assign(:advanced_search, advanced_search)  # Also update advanced_search
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
         # Reload collection with new filters - pass filters directly to avoid state timing issues
         send(self(), {:load_collection_with_filters, username, filters})
+        {:noreply, socket}
+
+      # Same username and filters, but different page - just paginate existing data
+      page != current_page ->
+        socket =
+          socket
+          |> assign(:current_page, page)
+          |> assign(:advanced_search, advanced_search)  # Update advanced_search if needed
+        load_current_page(socket)
+
+      # Same username, filters, and page, but advanced_search parameter changed
+      advanced_search != socket.assigns.advanced_search ->
+        socket =
+          socket
+          |> assign(:advanced_search, advanced_search)
+
         {:noreply, socket}
 
       # No changes
@@ -174,47 +178,39 @@ defmodule Web.CollectionLive do
 
   @impl true
   def handle_info({:load_collection_with_filters, username, filters}, socket) do
-    Logger.info("handle_info :load_collection_with_filters with filters #{inspect(filters)}")
+    Logger.info("Loading collection with filters: #{inspect(filters)}")
     # Convert client filters to BGG API parameters
     bgg_params = convert_filters_to_bgg_params(filters)
-    Logger.info("Converted BGG params: #{inspect(bgg_params)}")
+    Logger.info("BGG API params: #{inspect(bgg_params)}")
 
-    case Core.BggGateway.collection(username, bgg_params) do
-      {:ok, %CollectionResponse{items: items}} ->
-        # Apply client-side filtering for parameters not supported by BGG API
-        client_only_filters = extract_client_only_filters(filters)
-        client_filtered_items = Thing.filter_by(items, client_only_filters)
-        total_items = length(client_filtered_items)
-        Logger.info("Total items from BGG API: #{length(items)}")
-        Logger.info("Total items after client-side filtering: #{client_filtered_items |> length()}")
-        socket =
-          socket
-          |> assign(:all_collection_items, client_filtered_items)
-          |> assign(:total_items, total_items)
-          |> assign(:search_error, nil)
+    with {:ok, %CollectionResponse{items: basic_items}} <- Core.BggGateway.collection(username, bgg_params),
+         {:ok, cached_things} <- Core.BggCacher.load_things_cache(basic_items) do
+      
+      Logger.info("Loaded #{length(basic_items)} basic items, got #{length(cached_things)} cached items")
+      
+      # Apply client-side filtering to complete cached data
+      client_only_filters = extract_client_only_filters(filters)
+      filtered_items = apply_client_side_filters(cached_things, client_only_filters)
+      total_items = length(filtered_items)
+      
+      Logger.info("After client-side filtering: #{total_items} items")
+      
+      # Get current page items from filtered results
+      current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
+      
+      socket =
+        socket
+        |> assign(:all_collection_items, filtered_items)
+        |> assign(:collection_items, current_page_items)
+        |> assign(:total_items, total_items)
+        |> assign(:collection_loading, false)
+        |> assign(:search_error, nil)
 
-        # Get the current page of items and fetch detailed info for just those
-        current_page_items = get_current_page_items(socket)
-
-        case current_page_items do
-          [] ->
-            # No items to show
-            socket =
-              socket
-              |> assign(:collection_loading, false)
-              |> assign(:collection_items, [])
-
-            {:noreply, socket}
-
-          items ->
-            # Fetch detailed info for just the current page
-            game_ids = Enum.map(items, & &1.id)
-            send(self(), {:load_thing_details, game_ids, items})
-            {:noreply, socket}
-        end
-
+      {:noreply, socket}
+    else
       {:error, reason} ->
         error_message = format_error_message(reason)
+        Logger.warning("Failed to load collection: #{inspect(reason)}")
 
         socket =
           socket
@@ -225,34 +221,6 @@ defmodule Web.CollectionLive do
     end
   end
 
-  @impl true
-  def handle_info({:load_thing_details, game_ids, basic_items}, socket) do
-    case Core.BggGateway.things(game_ids, []) do
-      {:ok, detailed_things} ->
-        # Merge detailed information with the basic items for current page
-        enhanced_items = merge_collection_with_details(basic_items, detailed_things)
-
-        socket =
-          socket
-          |> assign(:collection_loading, false)
-          |> assign(:collection_items, enhanced_items)
-
-        {:noreply, socket}
-
-      {:error, reason} ->
-        # If detailed fetch fails, just show basic info for current page
-        error_message = "Failed to load detailed information: #{format_error_message(reason)}"
-
-        socket =
-          socket
-          |> assign(:collection_loading, false)
-          # Show basic items
-          |> assign(:collection_items, basic_items)
-          |> assign(:search_error, error_message)
-
-        {:noreply, socket}
-    end
-  end
 
   @impl true
   def handle_info({:load_modal_details, thing_id}, socket) do
@@ -541,24 +509,25 @@ defmodule Web.CollectionLive do
     |> Enum.take(items_per_page)
   end
 
+  defp get_current_page_items_from_list(all_items, current_page) do
+    items_per_page = 20
+    start_index = (current_page - 1) * items_per_page
+
+    all_items
+    |> Enum.drop(start_index)
+    |> Enum.take(items_per_page)
+  end
+
   defp load_current_page(socket) do
-    socket = assign(socket, :collection_loading, true)
+    # With caching, we already have all data and just need to paginate
     current_page_items = get_current_page_items(socket)
+    
+    socket =
+      socket
+      |> assign(:collection_loading, false)
+      |> assign(:collection_items, current_page_items)
 
-    case current_page_items do
-      [] ->
-        socket =
-          socket
-          |> assign(:collection_loading, false)
-          |> assign(:collection_items, [])
-
-        {:noreply, socket}
-
-      items ->
-        game_ids = Enum.map(items, & &1.id)
-        send(self(), {:load_thing_details, game_ids, items})
-        {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   defp max_page(socket) do
@@ -572,44 +541,6 @@ defmodule Web.CollectionLive do
     end
   end
 
-  defp merge_collection_with_details(collection_items, detailed_things) do
-    # Create a map for quick lookup of detailed information by ID
-    details_map =
-      detailed_things
-      |> Enum.map(&{&1.id, &1})
-      |> Enum.into(%{})
-
-    # Merge detailed information into collection items
-    Enum.map(collection_items, fn item ->
-      case Map.get(details_map, item.id) do
-        # No detailed info found, keep original
-        nil -> item
-        detailed -> merge_thing_data(item, detailed)
-      end
-    end)
-  end
-
-  defp merge_thing_data(collection_item, detailed_thing) do
-    # Merge the detailed information into the collection item
-    %{
-      collection_item
-      | thumbnail: detailed_thing.thumbnail || collection_item.thumbnail,
-        image: detailed_thing.image || collection_item.image,
-        description: detailed_thing.description,
-        minplayers: detailed_thing.minplayers,
-        maxplayers: detailed_thing.maxplayers,
-        playingtime: detailed_thing.playingtime,
-        minplaytime: detailed_thing.minplaytime,
-        maxplaytime: detailed_thing.maxplaytime,
-        minage: detailed_thing.minage,
-        usersrated: detailed_thing.usersrated,
-        average: detailed_thing.average,
-        bayesaverage: detailed_thing.bayesaverage,
-        rank: detailed_thing.rank,
-        owned: detailed_thing.owned,
-        averageweight: detailed_thing.averageweight
-    }
-  end
 
   defp format_error_message(:invalid_username), do: "Invalid username specified"
   defp format_error_message(:user_not_found), do: "User not found"
@@ -705,6 +636,15 @@ defmodule Web.CollectionLive do
     |> Enum.into(%{})
   end
 
+  # Apply client-side filtering using Thing.filter_by/2
+  defp apply_client_side_filters(things, filters) when filters == %{} do
+    things
+  end
+
+  defp apply_client_side_filters(things, filters) do
+    Thing.filter_by(things, filters)
+  end
+
   # Add non-empty values to filter map
   defp maybe_put_filter(filters, _key, value) when value in [nil, ""], do: filters
   defp maybe_put_filter(filters, key, value), do: Map.put(filters, key, value)
@@ -720,16 +660,6 @@ defmodule Web.CollectionLive do
   defp parse_integer(value) when is_integer(value), do: value
   defp parse_integer(_), do: nil
 
-  defp parse_float(value) when is_binary(value) do
-    case Float.parse(value) do
-      {float_val, _} -> float_val
-      _ -> nil
-    end
-  end
-
-  defp parse_float(value) when is_float(value), do: value
-  defp parse_float(value) when is_integer(value), do: value * 1.0
-  defp parse_float(_), do: nil
 
 
   # Helper function to parse URL parameters into filters

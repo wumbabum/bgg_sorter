@@ -9,7 +9,7 @@ defmodule Web.Components.PageNavigatorComponent do
     <%= if @total_items > @items_per_page do %>
       <div class="infobox">
         <div class="fl">
-          {render_page_links(@current_page, max_pages(@total_items, @items_per_page), @username)}
+          {render_page_links(@current_page, max_pages(@total_items, @items_per_page), @username, @filters, @advanced_search)}
         </div>
         <div class="fr">
           <!-- Right side content can be added here if needed -->
@@ -20,11 +20,13 @@ defmodule Web.Components.PageNavigatorComponent do
     """
   end
 
-  defp render_page_links(current_page, total_pages, username) do
+  defp render_page_links(current_page, total_pages, username, filters, advanced_search) do
     assigns = %{
       current_page: current_page,
       total_pages: total_pages,
       username: username,
+      filters: filters,
+      advanced_search: advanced_search,
       page_links: build_page_links(current_page, total_pages)
     }
 
@@ -34,19 +36,19 @@ defmodule Web.Components.PageNavigatorComponent do
         <% :current -> %>
           <b>{text}</b>
         <% :link -> %>
-          <.link navigate={"/collection/#{@username}?page=#{page}"} title={"page #{page}"}>
+          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title={"page #{page}"}>
             {text}
           </.link>
         <% :prev -> %>
-          <.link navigate={"/collection/#{@username}?page=#{page}"} title="previous page">
+          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title="previous page">
             <b>{text}</b>
           </.link>
         <% :next -> %>
-          <.link navigate={"/collection/#{@username}?page=#{page}"} title="next page">
+          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title="next page">
             <b>{text}</b>
           </.link>
         <% :last -> %>
-          <.link navigate={"/collection/#{@username}?page=#{page}"} title="last page">
+          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title="last page">
             {text}
           </.link>
         <% :separator -> %>
@@ -117,6 +119,37 @@ defmodule Web.Components.PageNavigatorComponent do
       1
     else
       ceil(total_items / items_per_page)
+    end
+  end
+
+  # Helper function to build page URLs with filters and advanced search preserved
+  defp build_page_url(username, filters, advanced_search, page) do
+    base_path = "/collection/#{username}"
+    
+    # Build query parameters
+    query_params =
+      filters
+      |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
+      |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
+      |> Enum.into(%{})
+    
+    # Add page parameter
+    query_params = Map.put(query_params, "page", to_string(page))
+    
+    # Add advanced_search parameter if needed
+    query_params =
+      if advanced_search do
+        Map.put(query_params, "advanced_search", "true")
+      else
+        query_params
+      end
+    
+    # Build query string
+    if Enum.empty?(query_params) do
+      base_path
+    else
+      query_string = URI.encode_query(query_params)
+      "#{base_path}?#{query_string}"
     end
   end
 end
