@@ -581,17 +581,18 @@ defmodule Web.CollectionLive do
 
   # Extract filters from form parameters for client-side filtering
   defp extract_game_filters(params) do
+    # Handle nested weight parameters from range_input component
+    weight_params = Map.get(params, "averageweight", %{})
+    weight_min = Map.get(weight_params, "min")
+    weight_max = Map.get(weight_params, "max")
+    
     %{}
     |> maybe_put_filter(:primary_name, Map.get(params, "primary_name"))
-    |> maybe_put_filter(:yearpublished_min, Map.get(params, "yearpublished_min"))
-    |> maybe_put_filter(:yearpublished_max, Map.get(params, "yearpublished_max"))
     |> maybe_put_filter(:players, Map.get(params, "players"))
     |> maybe_put_filter(:playingtime, Map.get(params, "playingtime"))
-    |> maybe_put_filter(:minage, Map.get(params, "minage"))
     |> maybe_put_filter(:average, Map.get(params, "average"))
     |> maybe_put_filter(:rank, Map.get(params, "rank"))
-    |> maybe_put_filter(:averageweight_min, Map.get(params, "averageweight_min"))
-    |> maybe_put_filter(:averageweight_max, Map.get(params, "averageweight_max"))
+    |> put_weight_filters(weight_min, weight_max)
     |> maybe_put_filter(:description, Map.get(params, "description"))
   end
 
@@ -655,6 +656,13 @@ defmodule Web.CollectionLive do
   defp maybe_put_filter(filters, _key, value) when value in [nil, ""], do: filters
   defp maybe_put_filter(filters, key, value), do: Map.put(filters, key, value)
 
+  # Always put weight filters (even if nil/empty) and let Thing.filter_by handle defaults
+  defp put_weight_filters(filters, min_weight, max_weight) do
+    filters
+    |> Map.put(:averageweight_min, min_weight)
+    |> Map.put(:averageweight_max, max_weight)
+  end
+
 
 
 
@@ -662,16 +670,11 @@ defmodule Web.CollectionLive do
   defp parse_url_filters(params) do
     %{}
     |> maybe_put_filter(:primary_name, Map.get(params, "primary_name"))
-    |> maybe_put_filter(:yearpublished_min, Map.get(params, "yearpublished_min"))
-    |> maybe_put_filter(:yearpublished_max, Map.get(params, "yearpublished_max"))
     |> maybe_put_filter(:players, Map.get(params, "players"))
-    |> maybe_put_filter(:playingtime_min, Map.get(params, "playingtime_min"))
-    |> maybe_put_filter(:playingtime_max, Map.get(params, "playingtime_max"))
-    |> maybe_put_filter(:minage, Map.get(params, "minage"))
+    |> maybe_put_filter(:playingtime, Map.get(params, "playingtime"))
     |> maybe_put_filter(:average, Map.get(params, "average"))
     |> maybe_put_filter(:rank, Map.get(params, "rank"))
-    |> maybe_put_filter(:averageweight_min, Map.get(params, "averageweight_min"))
-    |> maybe_put_filter(:averageweight_max, Map.get(params, "averageweight_max"))
+    |> put_weight_filters(Map.get(params, "averageweight_min"), Map.get(params, "averageweight_max"))
     |> maybe_put_filter(:description, Map.get(params, "description"))
   end
 

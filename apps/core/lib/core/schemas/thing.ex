@@ -117,9 +117,12 @@ defmodule Core.Schemas.Thing do
   @spec filter_by([t()], map()) :: [t()]
   def filter_by(things, filters \\ %{}) do
     Logger.info("Filtering #{length(things)} things with filters: #{inspect(filters)}")
+    # Apply weight defaults and then process filters
+    processed_filters = apply_weight_defaults(filters)
+    
     # Only process filters that are not nil or empty strings
     active_filters =
-      filters
+      processed_filters
       |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
       |> Enum.into(%{})
 
@@ -130,6 +133,26 @@ defmodule Core.Schemas.Thing do
     end
   end
 
+  # Apply weight filter defaults: min=0 if only max provided, max=5 if only min provided
+  defp apply_weight_defaults(filters) do
+    min_weight = Map.get(filters, :averageweight_min)
+    max_weight = Map.get(filters, :averageweight_max)
+    
+    cond do
+      # Only min provided, default max to 5
+      min_weight not in [nil, ""] and max_weight in [nil, ""] ->
+        Map.put(filters, :averageweight_max, "5")
+      
+      # Only max provided, default min to 0
+      min_weight in [nil, ""] and max_weight not in [nil, ""] ->
+        Map.put(filters, :averageweight_min, "0")
+      
+      # Both provided or neither provided, no changes
+      true ->
+        filters
+    end
+  end
+  
   # Check if a thing matches all active filters
   defp matches_all_filters?(thing, filters) do
     Enum.all?(filters, fn {key, value} ->
@@ -139,11 +162,8 @@ defmodule Core.Schemas.Thing do
 
   # Individual filter matching functions - one line each using helper functions
   defp matches_filter?(thing, :primary_name, search_term), do: string_contains?(thing.primary_name, search_term)
-  defp matches_filter?(thing, :yearpublished_min, min_year), do: integer_gte?(thing.yearpublished, min_year)
-  defp matches_filter?(thing, :yearpublished_max, max_year), do: integer_lte?(thing.yearpublished, max_year)
   defp matches_filter?(thing, :players, target_players), do: in_integer_range?(target_players, thing.minplayers, thing.maxplayers)
   defp matches_filter?(thing, :playingtime, target_time), do: in_integer_range?(target_time, thing.minplaytime, thing.maxplaytime)
-  defp matches_filter?(thing, :minage, max_minage), do: integer_lte?(thing.minage, max_minage)
   defp matches_filter?(thing, :rank, max_rank), do: integer_lte_positive?(thing.rank, max_rank)
   defp matches_filter?(thing, :average, min_rating), do: float_gte?(thing.average, min_rating)
   defp matches_filter?(thing, :averageweight_min, min_weight), do: float_gte?(thing.averageweight, min_weight)
@@ -156,20 +176,6 @@ defmodule Core.Schemas.Thing do
   # Helper functions for filter matching
   defp string_contains?(field_value, search_term) do
     String.contains?(String.downcase(field_value || ""), String.downcase(search_term))
-  end
-
-  defp integer_gte?(field_value, min_value) do
-    case {parse_integer(field_value), parse_integer(min_value)} do
-      {field_int, min_int} when is_integer(field_int) and is_integer(min_int) -> field_int >= min_int
-      _ -> true
-    end
-  end
-
-  defp integer_lte?(field_value, max_value) do
-    case {parse_integer(field_value), parse_integer(max_value)} do
-      {field_int, max_int} when is_integer(field_int) and is_integer(max_int) -> field_int <= max_int
-      _ -> true
-    end
   end
 
   defp integer_lte_positive?(field_value, max_value) do

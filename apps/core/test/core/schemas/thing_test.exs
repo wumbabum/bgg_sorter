@@ -96,7 +96,7 @@ defmodule Core.Schemas.ThingTest do
     end
 
     test "returns all things when filters contain only nil/empty values", %{things: things} do
-      filters = %{primary_name: nil, players: "", yearpublished_min: nil}
+      filters = %{primary_name: nil, players: "", rank: nil}
       assert Thing.filter_by(things, filters) == things
     end
 
@@ -109,24 +109,6 @@ defmodule Core.Schemas.ThingTest do
       result = Thing.filter_by(things, %{primary_name: "a"})
       assert length(result) == 5
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
-      assert Enum.any?(result, &(&1.primary_name == "Azul"))
-      assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
-      assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
-      assert Enum.any?(result, &(&1.primary_name == "The Resistance"))
-    end
-
-    test "filters by year published min", %{things: things} do
-      # Should return Wingspan (2019) and Azul/Gloomhaven (2017)
-      assert length(Thing.filter_by(things, %{yearpublished_min: "2017"})) == 3
-      
-      # Should return only Wingspan (2019)  
-      assert [%Thing{primary_name: "Wingspan"}] = Thing.filter_by(things, %{yearpublished_min: "2018"})
-    end
-
-    test "filters by year published max", %{things: things} do
-      # Should return Azul (2017), Gloomhaven (2017), Android: Netrunner (2012), and The Resistance (2009)
-      result = Thing.filter_by(things, %{yearpublished_max: "2017"})
-      assert length(result) == 4
       assert Enum.any?(result, &(&1.primary_name == "Azul"))
       assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
       assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
@@ -176,14 +158,6 @@ defmodule Core.Schemas.ThingTest do
       result = Thing.filter_by(things, %{playingtime: "100"})
       assert length(result) == 1
       assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
-    end
-
-    test "filters by minimum age", %{things: things} do
-      # Games with minage <= 10: Wingspan (10) and Azul (8)
-      result = Thing.filter_by(things, %{minage: "10"})
-      assert length(result) == 2
-      assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
-      assert Enum.any?(result, &(&1.primary_name == "Azul"))
     end
 
     test "filters by maximum rank", %{things: things} do
@@ -249,8 +223,8 @@ defmodule Core.Schemas.ThingTest do
       # No games support 11 players (The Resistance supports up to 10)
       assert Thing.filter_by(things, %{players: "11"}) == []
       
-      # No games from before 2000
-      assert Thing.filter_by(things, %{yearpublished_max: "2000"}) == []
+      # No games ranked at position 0 (impossible rank)
+      assert Thing.filter_by(things, %{rank: "0"}) == []
     end
 
     test "handles invalid/unparseable data gracefully", %{things: things} do
@@ -282,6 +256,37 @@ defmodule Core.Schemas.ThingTest do
       # Should ignore unknown filter and return all things
       result = Thing.filter_by(things, %{unknown_filter: "some_value"})
       assert result == things
+    end
+    
+    test "applies weight defaults when only min provided", %{things: things} do
+      # Only min weight provided (2.0), should default max to 5.0
+      # Expected: Wingspan (2.44), Gloomhaven (3.86), Android: Netrunner (3.413)
+      # Should exclude: Azul (1.78), The Resistance (1.591)
+      result = Thing.filter_by(things, %{averageweight_min: "2.0", averageweight_max: nil})
+      assert length(result) == 3
+      assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
+      assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
+      assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
+    end
+    
+    test "applies weight defaults when only max provided", %{things: things} do
+      # Only max weight provided (2.5), should default min to 0
+      # Expected: Wingspan (2.44), Azul (1.78), The Resistance (1.591)
+      # Should exclude: Gloomhaven (3.86), Android: Netrunner (3.413)
+      result = Thing.filter_by(things, %{averageweight_min: nil, averageweight_max: "2.5"})
+      assert length(result) == 3
+      assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
+      assert Enum.any?(result, &(&1.primary_name == "Azul"))
+      assert Enum.any?(result, &(&1.primary_name == "The Resistance"))
+    end
+    
+    test "applies weight defaults when only min provided with empty string for max", %{things: things} do
+      # Only min weight provided (2.0) with empty string for max, should default max to 5.0
+      result = Thing.filter_by(things, %{averageweight_min: "2.0", averageweight_max: ""})
+      assert length(result) == 3
+      assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
+      assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
+      assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
     end
   end
 end

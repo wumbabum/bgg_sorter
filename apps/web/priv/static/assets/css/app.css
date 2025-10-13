@@ -2641,7 +2641,9 @@
 }
 .infobox {
   background-color: #f0f0f0;
-  border: 1px solid #ccc;
+  border-top: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
   padding: 8px 12px;
   margin: 0;
   font-size: 13px;

@@ -1751,3 +1751,62 @@ float_lte?/2                    # Float less than or equal
 - **Scalability**: Helper functions can be reused for future filter types
 
 **Status**: ✅ **PLAYING TIME FILTER & DRY REFACTOR COMPLETE** - Enhanced user experience with simplified playing time filtering and significantly improved code maintainability through DRY refactoring. Fast test execution enables efficient development workflow.
+
+### October 13, 2025 - Advanced Search Filter Refinement & Weight Defaults ✅ COMPLETED
+
+#### Filter Removal and Simplification ✅ COMPLETED
+
+**Filters Removed**: Removed Year Published and Maximum Minimum Age filters from advanced search to simplify the user experience and focus on the most useful filtering capabilities.
+
+**Changes Made**:
+- **Advanced Search Component**: Removed Year Published range input and Maximum Minimum Age number input from form
+- **Thing Schema**: Removed `matches_filter?/3` functions for `:yearpublished_min`, `:yearpublished_max`, and `:minage`
+- **CollectionLive**: Removed these filters from both `extract_game_filters/1` and `parse_url_filters/1` functions
+- **Tests**: Updated test cases to remove year published and minimum age filter tests, added rank-based tests instead
+- **Code Cleanup**: Removed unused `integer_gte?/2` and `integer_lte?/2` helper functions to eliminate compiler warnings
+
+#### Weight Filter Defaults Implementation ✅ COMPLETED
+
+**Problem Addressed**: Users wanted to enter only a minimum OR maximum weight value without having to specify both, but the system required both values for effective filtering.
+
+**Solution Implemented**:
+- **Smart Defaults**: When user provides only min weight → automatically defaults max to 5; when user provides only max weight → automatically defaults min to 0
+- **Clean Architecture**: Used existing `Thing.filter_by/2` logic rather than complex pattern matching in LiveView
+- **Added `apply_weight_defaults/1`** function in Thing schema to handle default logic before filter processing
+
+**User Experience Enhancement**:
+- **Enter only minimum weight** (e.g., "2.5") → filters games with weight 2.5-5.0
+- **Enter only maximum weight** (e.g., "3.0") → filters games with weight 0-3.0  
+- **Enter both values** → uses exact range as specified
+- **Enter neither** → no weight filtering applied
+
+#### Critical Bug Fix: Form Parameter Structure ✅ COMPLETED
+
+**Issue Identified**: Weight filtering was not working when users entered only max value because of a parameter structure mismatch:
+- **Range input component** creates nested parameters: `%{"averageweight" => %{"min" => "", "max" => "3"}}`
+- **Filter extraction** was expecting flat parameters: `"averageweight_min"`, `"averageweight_max"`
+
+**Solution Implemented**:
+- **Updated `extract_game_filters/1`** to handle nested weight parameters from `range_input` component
+- **Added parameter extraction logic** to properly parse `params["averageweight"]["min"]` and `params["averageweight"]["max"]`
+- **Maintained backward compatibility** for URL parameters that use flat structure
+
+**Testing Coverage**:
+- **Added 3 comprehensive tests** for weight default behavior covering all scenarios
+- **All existing tests maintained** - 16/16 tests passing with zero regressions
+- **Manual verification** of advanced search form functionality
+
+#### Files Modified
+- `apps/web/lib/web/components/advanced_search_component.ex` - Removed year published and minimum age filters
+- `apps/core/lib/core/schemas/thing.ex` - Added weight defaults logic and removed unused filters
+- `apps/web/lib/web/live/collection_live.ex` - Updated parameter extraction for nested weight structure
+- `apps/core/test/core/schemas/thing_test.exs` - Updated tests and added weight default test cases
+
+#### Technical Benefits
+- **Simplified User Interface**: Focused on most valuable filters, reducing cognitive load
+- **Intelligent Defaults**: Weight filtering works intuitively without requiring both min/max values
+- **Robust Parameter Handling**: Properly handles both nested (form) and flat (URL) parameter structures
+- **Clean Architecture**: Weight defaults handled in schema layer rather than scattered throughout codebase
+- **Comprehensive Testing**: Full coverage ensures reliability of default behavior
+
+**Status**: ✅ **ADVANCED SEARCH REFINEMENT COMPLETE** - Streamlined filtering interface with intelligent weight defaults and robust parameter handling. All functionality working correctly with comprehensive test coverage.

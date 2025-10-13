@@ -41,15 +41,6 @@ defmodule Web.Components.AdvancedSearchComponent do
               size="35"
             />
 
-    <!-- Year Published Range -->
-            <AdvancedSearchInputComponent.range_input
-              id="search-year"
-              name="yearpublished"
-              label="Year Published"
-              min_value={@filters[:yearpublished_min] || ""}
-              max_value={@filters[:yearpublished_max] || ""}
-            />
-
     <!-- Number of Players -->
             <AdvancedSearchInputComponent.player_select selected_players={@filters[:players] || ""} />
 
@@ -61,16 +52,6 @@ defmodule Web.Components.AdvancedSearchComponent do
               value={@filters[:playingtime] || ""}
               placeholder="Time in minutes"
               suffix="minutes"
-            />
-
-    <!-- Minimum Age -->
-            <AdvancedSearchInputComponent.number_input
-              id="search-minage"
-              name="minage"
-              label="Maximum Minimum Age"
-              value={@filters[:minage] || ""}
-              placeholder="Age in years"
-              suffix="years or younger"
             />
 
     <!-- User Rating (Minimum) -->
