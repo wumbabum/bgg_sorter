@@ -341,7 +341,7 @@
 
 /* Table cell styling */
 .collection_thumbnail {
-  width: 80px;
+  width: 40px;
   padding: 10px 8px;
   text-align: center;
   vertical-align: middle;
@@ -402,6 +402,60 @@
 .collection_weight {
   font-weight: bold;
   color: #3f3f74;
+}
+
+/* Sortable header styling */
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.sortable-header:hover {
+  background-color: #565690 !important;
+}
+
+.sortable-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sortable-header-label {
+  flex: 1;
+}
+
+.sort-indicator {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  width: 12px;
+  height: 12px;
+}
+
+.triangle {
+  font-size: 8px;
+  transition: opacity 0.2s ease;
+}
+
+.triangle-up {
+  color: white;
+  opacity: 1;
+}
+
+.triangle-down {
+  color: white;
+  opacity: 1;
+}
+
+.triangle-neutral {
+  color: white;
+  opacity: 0.3;
+}
+
+.sortable-header:hover .triangle-neutral {
+  opacity: 0.6;
 }
 
 .item-placeholder {

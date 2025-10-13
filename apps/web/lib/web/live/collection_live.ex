@@ -6,6 +6,7 @@ defmodule Web.CollectionLive do
   require Logger
 
   alias Core.Schemas.{CollectionResponse, Thing}
+  alias Web.Sorter
 
   @impl true
   def mount(%{"username" => username} = params, _session, socket) do
@@ -27,6 +28,9 @@ defmodule Web.CollectionLive do
 
     # Parse filter parameters from URL
     filters = parse_url_filters(params)
+    
+    # Parse sort parameters from URL
+    {sort_field, sort_direction} = parse_sort_params(params)
 
     socket =
       socket
@@ -41,6 +45,8 @@ defmodule Web.CollectionLive do
       |> assign(:total_items, 0)
       |> assign(:advanced_search, advanced_search)
       |> assign(:filters, filters)
+      |> assign(:sort_by, sort_field)
+      |> assign(:sort_direction, sort_direction)
       |> assign(:modal_open, false)
       |> assign(:modal_loading, false)
       |> assign(:selected_thing, nil)
@@ -72,6 +78,8 @@ defmodule Web.CollectionLive do
       |> assign(:total_items, 0)
       |> assign(:advanced_search, advanced_search)
       |> assign(:filters, %{})
+      |> assign(:sort_by, :primary_name)
+      |> assign(:sort_direction, :asc)
       |> assign(:modal_open, false)
       |> assign(:modal_loading, false)
       |> assign(:selected_thing, nil)
@@ -101,9 +109,14 @@ defmodule Web.CollectionLive do
 
     # Parse filter parameters from URL
     filters = parse_url_filters(params)
+    
+    # Parse sort parameters from URL
+    {sort_field, sort_direction} = parse_sort_params(params)
 
     current_page = socket.assigns.current_page
     current_filters = socket.assigns.filters
+    current_sort_field = socket.assigns.sort_by
+    current_sort_direction = socket.assigns.sort_direction
 
     cond do
       # Username changed, reload collection
@@ -120,6 +133,8 @@ defmodule Web.CollectionLive do
           |> assign(:total_items, 0)
           |> assign(:advanced_search, advanced_search)
           |> assign(:filters, filters)
+          |> assign(:sort_by, sort_field)
+          |> assign(:sort_direction, sort_direction)
           |> assign(:modal_open, false)
           |> assign(:modal_loading, false)
           |> assign(:selected_thing, nil)
@@ -150,12 +165,35 @@ defmodule Web.CollectionLive do
             {:noreply, socket}
         end
 
+      # Sort parameters changed - apply new sorting to existing filtered data
+      sort_field != current_sort_field or sort_direction != current_sort_direction ->
+        # Apply new sorting to current filtered collection
+        all_items = socket.assigns.all_collection_items
+        sorted_items = Sorter.sort_by(all_items, sort_field, sort_direction)
+        
+        # Reset to page 1 and get new current page items
+        new_page = 1
+        current_page_items = get_current_page_items_from_list(sorted_items, new_page)
+        
+        socket =
+          socket
+          |> assign(:sort_by, sort_field)
+          |> assign(:sort_direction, sort_direction)
+          |> assign(:current_page, new_page)
+          |> assign(:advanced_search, advanced_search)
+          |> assign(:all_collection_items, sorted_items)
+          |> assign(:collection_items, current_page_items)
+        
+        {:noreply, socket}
+
       # Same username and filters, but different page - just paginate existing data
       page != current_page ->
         socket =
           socket
           |> assign(:current_page, page)
           |> assign(:advanced_search, advanced_search)  # Update advanced_search if needed
+          |> assign(:sort_by, sort_field)  # Update sort parameters
+          |> assign(:sort_direction, sort_direction)
         load_current_page(socket)
 
       # Same username, filters, and page, but advanced_search parameter changed
@@ -203,17 +241,20 @@ defmodule Web.CollectionLive do
       
       # Apply client-side filtering to complete cached data
       filtered_items = Thing.filter_by(cached_things, filters)
-      total_items = length(filtered_items)
+      
+      # Apply sorting to filtered items
+      sorted_items = Sorter.sort_by(filtered_items, socket.assigns.sort_by, socket.assigns.sort_direction)
+      total_items = length(sorted_items)
 
-      Logger.info("After client-side filtering: #{total_items} items")
+      Logger.info("After client-side filtering and sorting: #{total_items} items")
 
-      # Get current page items from filtered results
-      current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
+      # Get current page items from sorted results
+      current_page_items = get_current_page_items_from_list(sorted_items, socket.assigns.current_page)
 
       socket =
         socket
         |> assign(:original_collection_items, original_items)  # Store original unfiltered data
-        |> assign(:all_collection_items, filtered_items)      # Store filtered results for pagination
+        |> assign(:all_collection_items, sorted_items)        # Store filtered and sorted results for pagination
         |> assign(:collection_items, current_page_items)      # Store current page items
         |> assign(:total_items, total_items)
         |> assign(:collection_loading, false)
@@ -516,6 +557,51 @@ defmodule Web.CollectionLive do
     {:noreply, socket}
   end
 
+  @impl true
+  def handle_event("column_sort", %{"field" => field_str}, socket) do
+    field = String.to_atom(field_str)
+    current_sort_field = socket.assigns.sort_by
+    current_sort_direction = socket.assigns.sort_direction
+    
+    # Determine new sort direction
+    new_sort_direction =
+      if field == current_sort_field do
+        # Same field clicked - toggle direction
+        case current_sort_direction do
+          :asc -> :desc
+          :desc -> :asc
+        end
+      else
+        # Different field clicked - default to ascending
+        :asc
+      end
+    
+    # Apply sorting to current filtered collection
+    all_items = socket.assigns.all_collection_items
+    sorted_items = Sorter.sort_by(all_items, field, new_sort_direction)
+    
+    # Reset to page 1 and get new current page items
+    current_page = 1
+    current_page_items = get_current_page_items_from_list(sorted_items, current_page)
+    
+    socket =
+      socket
+      |> assign(:sort_by, field)
+      |> assign(:sort_direction, new_sort_direction)
+      |> assign(:current_page, current_page)
+      |> assign(:all_collection_items, sorted_items)
+      |> assign(:collection_items, current_page_items)
+    
+    # Update URL to include sort parameters
+    username = socket.assigns.username
+    filters = socket.assigns.filters
+    advanced_search = socket.assigns.advanced_search
+    
+    url = build_collection_url_with_sort(username, filters, field, new_sort_direction, advanced_search: advanced_search)
+    
+    {:noreply, push_patch(socket, to: url)}
+  end
+
   defp get_current_page_items(socket) do
     all_items = socket.assigns.all_collection_items
     current_page = socket.assigns.current_page
@@ -632,16 +718,19 @@ defmodule Web.CollectionLive do
     else
       # Apply new filters to original collection
       filtered_items = Thing.filter_by(original_items, new_filters)
-      total_items = length(filtered_items)
+      
+      # Apply sorting to filtered items
+      sorted_items = Sorter.sort_by(filtered_items, socket.assigns.sort_by, socket.assigns.sort_direction)
+      total_items = length(sorted_items)
       
       # Reset to page 1 when filters change
       current_page = 1
-      current_page_items = get_current_page_items_from_list(filtered_items, current_page)
+      current_page_items = get_current_page_items_from_list(sorted_items, current_page)
       
       updated_socket =
         socket
         |> assign(:filters, new_filters)
-        |> assign(:all_collection_items, filtered_items)
+        |> assign(:all_collection_items, sorted_items)
         |> assign(:collection_items, current_page_items)
         |> assign(:current_page, current_page)
         |> assign(:total_items, total_items)
@@ -688,6 +777,68 @@ defmodule Web.CollectionLive do
       |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
       |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
       |> Enum.into(%{})
+
+    # Add advanced_search parameter if needed
+    query_params =
+      if opts[:advanced_search] do
+        Map.put(query_params, "advanced_search", "true")
+      else
+        query_params
+      end
+
+    # Add page parameter if needed
+    query_params =
+      if opts[:page] do
+        Map.put(query_params, "page", to_string(opts[:page]))
+      else
+        query_params
+      end
+
+    # Build query string
+    if Enum.empty?(query_params) do
+      base_path
+    else
+      query_string = URI.encode_query(query_params)
+      "#{base_path}?#{query_string}"
+    end
+  end
+
+  # Helper function to parse sort parameters from URL
+  defp parse_sort_params(params) do
+    sort_field = 
+      case Map.get(params, "sort_by") do
+        "primary_name" -> :primary_name
+        "players" -> :players
+        "average" -> :average
+        "averageweight" -> :averageweight
+        _ -> :primary_name  # default
+      end
+    
+    sort_direction = 
+      case Map.get(params, "sort_direction") do
+        "desc" -> :desc
+        _ -> :asc  # default to ascending
+      end
+    
+    {sort_field, sort_direction}
+  end
+
+  # Helper function to build URL with filter and sort query parameters  
+  defp build_collection_url_with_sort(username, filters, sort_field, sort_direction, opts) do
+    base_path = "/collection/#{username}"
+
+    # Build query parameters
+    query_params =
+      filters
+      |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
+      |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
+      |> Enum.into(%{})
+
+    # Add sort parameters
+    query_params =
+      query_params
+      |> Map.put("sort_by", Atom.to_string(sort_field))
+      |> Map.put("sort_direction", Atom.to_string(sort_direction))
 
     # Add advanced_search parameter if needed
     query_params =

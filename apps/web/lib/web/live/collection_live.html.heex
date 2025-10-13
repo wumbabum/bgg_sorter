@@ -47,11 +47,31 @@
           <table class="collection">
             <thead>
               <tr class="collection-header-row">
-                <th>Image</th>
-                <th>Name</th>
-                <th>Players</th>
-                <th>Rating</th>
-                <th>Weight</th>
+                <th></th>
+                <Web.Components.SortableHeaderComponent.sortable_header
+                  field={:primary_name}
+                  label="Name"
+                  current_sort_field={@sort_by}
+                  current_sort_direction={@sort_direction}
+                />
+                <Web.Components.SortableHeaderComponent.sortable_header
+                  field={:players}
+                  label="Players"
+                  current_sort_field={@sort_by}
+                  current_sort_direction={@sort_direction}
+                />
+                <Web.Components.SortableHeaderComponent.sortable_header
+                  field={:average}
+                  label="Rating"
+                  current_sort_field={@sort_by}
+                  current_sort_direction={@sort_direction}
+                />
+                <Web.Components.SortableHeaderComponent.sortable_header
+                  field={:averageweight}
+                  label="Weight"
+                  current_sort_field={@sort_by}
+                  current_sort_direction={@sort_direction}
+                />
               </tr>
             </thead>
             <tbody>
