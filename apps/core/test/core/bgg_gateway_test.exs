@@ -147,7 +147,6 @@ defmodule Core.BggGatewayTest do
         assert params["username"] == "testuser"
         assert params["own"] == "1"
         assert params["stats"] == "1"
-        assert params["subtype"] == "boardgame"
 
         {:ok,
          %Req.Response{
@@ -161,7 +160,7 @@ defmodule Core.BggGatewayTest do
       end)
 
       assert {:ok, _collection} =
-               BggGateway.collection("testuser", own: 1, stats: 1, subtype: "boardgame")
+               BggGateway.collection("testuser", own: 1, stats: 1)
     end
 
     test "filters out nil values from request parameters" do
@@ -189,17 +188,11 @@ defmodule Core.BggGatewayTest do
     end
 
     test "returns error for invalid collection request parameters" do
-      # Invalid rating value (must be 1-10)
+      # Invalid minbggrating value (must be 1-10)
       assert {:error, {:invalid_collection_request, errors}} =
-               BggGateway.collection("testuser", rating: 15)
+               BggGateway.collection("testuser", minbggrating: 15)
 
-      assert Keyword.has_key?(errors, :rating)
-
-      # Invalid subtype
-      assert {:error, {:invalid_collection_request, errors}} =
-               BggGateway.collection("testuser", subtype: "invalidtype")
-
-      assert Keyword.has_key?(errors, :subtype)
+      assert Keyword.has_key?(errors, :minbggrating)
 
       # Invalid wishlistpriority (must be 1-5)
       assert {:error, {:invalid_collection_request, errors}} =

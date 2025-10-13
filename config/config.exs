@@ -18,6 +18,11 @@ import Config
 
 config :core, :bgg_req_client, Core.BggGateway.ReqClient
 
+# Configure ReqClient retry behavior
+config :core, Core.BggGateway.ReqClient,
+  retry: false,
+  receive_timeout: 10_000
+
 # Configure Mix tasks and generators
 config :core,
   ecto_repos: [Core.Repo]

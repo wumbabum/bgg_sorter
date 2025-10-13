@@ -2,6 +2,11 @@ import Config
 
 config :core, :bgg_req_client, Core.MockReqClient
 
+# Configure ReqClient retry behavior for fast tests
+config :core, Core.BggGateway.ReqClient,
+  retry: false,
+  receive_timeout: 1000
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

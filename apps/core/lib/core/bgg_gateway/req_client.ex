@@ -45,14 +45,14 @@ defmodule Core.BggGateway.ReqClient do
   @impl Behaviour
   def get(url, params, headers) do
     Logger.info("Making GET request with args: #{inspect(%{url: url, params: params, headers: headers})}")
-    opts = [params: params, headers: headers] ++ request_options()
+    opts = [params: params, headers: headers] ++ req_options()
     Req.get(url, opts)
   end
 
   @doc "Makes a POST request to the specified URL."
   @impl Behaviour
   def post(url, params, headers, body \\ nil) do
-    request_opts = [params: params, headers: headers] ++ request_options()
+    request_opts = [params: params, headers: headers] ++ req_options()
 
     request_opts =
       case body do
@@ -67,7 +67,7 @@ defmodule Core.BggGateway.ReqClient do
   @doc "Makes a PATCH request to the specified URL."
   @impl Behaviour
   def patch(url, params, headers, body \\ nil) do
-    request_opts = [params: params, headers: headers] ++ request_options()
+    request_opts = [params: params, headers: headers] ++ req_options()
 
     request_opts =
       case body do
@@ -82,18 +82,12 @@ defmodule Core.BggGateway.ReqClient do
   @doc "Makes an OPTIONS request to the specified URL."
   @impl Behaviour
   def options(url, params, headers) do
-    opts = [method: :options, url: url, params: params, headers: headers] ++ request_options()
+    opts = [method: :options, url: url, params: params, headers: headers] ++ req_options()
     Req.request(opts)
   end
 
-  # Private helper to get environment-specific request options
-  defp request_options do
-    if Mix.env() == :test do
-      # Disable retries in test environment to avoid long timeouts
-      [retry: false, receive_timeout: 1000]
-    else
-      # Use default options in other environments
-      []
-    end
+  # Private helper to get configured request options
+  defp req_options do
+    Application.get_env(:core, __MODULE__, [retry: false])
   end
 end

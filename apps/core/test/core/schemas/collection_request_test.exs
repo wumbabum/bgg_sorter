@@ -21,8 +21,6 @@ defmodule Core.Schemas.CollectionRequestTest do
       attrs = %{
         username: "testuser",
         version: 1,
-        subtype: "boardgame",
-        excludesubtype: "boardgameexpansion",
         own: 1,
         rated: 1,
         played: 0,
@@ -37,8 +35,6 @@ defmodule Core.Schemas.CollectionRequestTest do
         prevowned: 1,
         hasparts: 0,
         wantparts: 1,
-        minrating: 5,
-        rating: 8,
         minbggrating: 6,
         modifiedsince: "2025-01-01",
         stats: 1
@@ -55,33 +51,7 @@ defmodule Core.Schemas.CollectionRequestTest do
       assert Keyword.has_key?(changeset.errors, :version)
     end
 
-    test "validates subtype inclusion" do
-      attrs = %{username: "testuser", subtype: "invalidtype"}
-      changeset = CollectionRequest.changeset(%CollectionRequest{}, attrs)
-      refute changeset.valid?
-      assert Keyword.has_key?(changeset.errors, :subtype)
 
-      # Valid subtypes
-      valid_attrs = %{username: "testuser", subtype: "boardgame"}
-      valid_changeset = CollectionRequest.changeset(%CollectionRequest{}, valid_attrs)
-      assert valid_changeset.valid?
-
-      valid_attrs2 = %{username: "testuser", subtype: "boardgameexpansion"}
-      valid_changeset2 = CollectionRequest.changeset(%CollectionRequest{}, valid_attrs2)
-      assert valid_changeset2.valid?
-    end
-
-    test "validates excludesubtype inclusion" do
-      attrs = %{username: "testuser", excludesubtype: "invalidtype"}
-      changeset = CollectionRequest.changeset(%CollectionRequest{}, attrs)
-      refute changeset.valid?
-      assert Keyword.has_key?(changeset.errors, :excludesubtype)
-
-      # Valid excludesubtype
-      valid_attrs = %{username: "testuser", excludesubtype: "boardgameexpansion"}
-      valid_changeset = CollectionRequest.changeset(%CollectionRequest{}, valid_attrs)
-      assert valid_changeset.valid?
-    end
 
     test "validates binary flags are 0 or 1" do
       binary_fields = [
@@ -140,7 +110,7 @@ defmodule Core.Schemas.CollectionRequestTest do
     end
 
     test "validates rating ranges" do
-      rating_fields = [:minrating, :rating, :minbggrating]
+      rating_fields = [:minbggrating]
 
       Enum.each(rating_fields, fn field ->
         # Invalid values
@@ -194,7 +164,6 @@ defmodule Core.Schemas.CollectionRequestTest do
       attrs = %{
         username: "testuser",
         version: nil,
-        subtype: nil,
         own: nil,
         stats: nil
       }
