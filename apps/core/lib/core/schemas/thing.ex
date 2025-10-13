@@ -116,6 +116,7 @@ defmodule Core.Schemas.Thing do
   @doc "Filters a list of things based on the provided filter criteria."
   @spec filter_by([t()], map()) :: [t()]
   def filter_by(things, filters \\ %{}) do
+    Logger.info("Filtering #{length(things)} things with filters: #{inspect(filters)}")
     # Only process filters that are not nil or empty strings
     active_filters =
       filters
@@ -201,6 +202,15 @@ defmodule Core.Schemas.Thing do
       {thing_rank, max_rank_int} when is_integer(thing_rank) and is_integer(max_rank_int) and thing_rank > 0 ->
         # Lower rank number is better
         thing_rank <= max_rank_int
+      _ ->
+        true
+    end
+  end
+
+  defp matches_filter?(thing, :average, min_rating) do
+    case {parse_float(thing.average), parse_float(min_rating)} do
+      {thing_rating, min_rating_float} when is_float(thing_rating) and is_float(min_rating_float) ->
+        thing_rating >= min_rating_float
       _ ->
         true
     end

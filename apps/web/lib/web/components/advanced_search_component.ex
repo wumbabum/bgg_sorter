@@ -8,8 +8,15 @@ defmodule Web.Components.AdvancedSearchComponent do
     ~H"""
     <div class="section-container">
       <div class="search-header">
-        <h1 class="collection-title">Advanced Collection Search</h1>
-        <div class="collection-subtitle">Filter and search through BoardGameGeek collections</div>
+        <div class="search-header-content">
+          <div class="search-title-section">
+            <h1 class="collection-title">Advanced Collection Search</h1>
+            <div class="collection-subtitle">Filter and search through BoardGameGeek collections</div>
+          </div>
+          <button type="button" phx-click="toggle_advanced_search" class="close-button" title="Close Advanced Search">
+            ×
+          </button>
+        </div>
       </div>
       <form phx-submit="advanced_search" class="advanced-search-form">
         <table class="advanced-search-table">

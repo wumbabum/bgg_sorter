@@ -32,6 +32,8 @@ defmodule Core.BggGateway.ReqClient do
     @callback options(String.t(), params(), headers()) :: response()
   end
 
+  require Logger
+
   @behaviour Behaviour
 
   @type headers :: [{String.t(), String.t()}] | map()
@@ -42,6 +44,7 @@ defmodule Core.BggGateway.ReqClient do
   @doc "Makes a GET request to the specified URL."
   @impl Behaviour
   def get(url, params, headers) do
+    Logger.info("Making GET request with args: #{inspect(%{url: url, params: params, headers: headers})}")
     Req.get(url, params: params, headers: headers)
   end
 

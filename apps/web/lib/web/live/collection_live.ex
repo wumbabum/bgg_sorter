@@ -33,7 +33,8 @@ defmodule Web.CollectionLive do
       |> assign(:username, username)
       |> assign(:collection_loading, true)
       |> assign(:collection_items, [])
-      |> assign(:all_collection_items, [])
+      |> assign(:all_collection_items, [])  # Filtered collection for pagination
+      |> assign(:original_collection_items, [])  # Unfiltered collection from BGG
       |> assign(:search_error, nil)
       |> assign(:current_page, page)
       |> assign(:items_per_page, 20)
@@ -63,7 +64,8 @@ defmodule Web.CollectionLive do
       |> assign(:username, nil)
       |> assign(:collection_loading, false)
       |> assign(:collection_items, [])
-      |> assign(:all_collection_items, [])
+      |> assign(:all_collection_items, [])  # Filtered collection for pagination
+      |> assign(:original_collection_items, [])  # Unfiltered collection from BGG
       |> assign(:search_error, nil)
       |> assign(:current_page, 1)
       |> assign(:items_per_page, 20)
@@ -111,7 +113,8 @@ defmodule Web.CollectionLive do
           |> assign(:username, username)
           |> assign(:current_page, page)
           |> assign(:collection_loading, true)
-          |> assign(:all_collection_items, [])
+          |> assign(:all_collection_items, [])  # Filtered collection for pagination
+          |> assign(:original_collection_items, [])  # Unfiltered collection from BGG
           |> assign(:collection_items, [])
           |> assign(:search_error, nil)
           |> assign(:total_items, 0)
@@ -126,19 +129,26 @@ defmodule Web.CollectionLive do
         send(self(), {:load_collection, username})
         {:noreply, socket}
 
-      # Filters changed (but same username), reload collection with new filters
+      # Filters changed (but same username), try client-side filtering first
       filters != current_filters ->
         socket =
           socket
-          |> assign(:filters, filters)
           |> assign(:current_page, page)  # Also update page
           |> assign(:advanced_search, advanced_search)  # Also update advanced_search
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
-        # Reload collection with new filters - pass filters directly to avoid state timing issues
-        send(self(), {:load_collection_with_filters, username, filters})
-        {:noreply, socket}
+        case reapply_filters_to_collection(socket, filters) do
+          {:ok, updated_socket} ->
+            Logger.info("Applied filters client-side without API call")
+            {:noreply, updated_socket}
+          
+          {:reload_needed, socket} ->
+            Logger.info("Original collection not available, reloading from API")
+            # Reload collection with new filters - pass filters directly to avoid state timing issues
+            send(self(), {:load_collection_with_filters, username, filters})
+            {:noreply, socket}
+        end
 
       # Same username and filters, but different page - just paginate existing data
       page != current_page ->
@@ -185,23 +195,26 @@ defmodule Web.CollectionLive do
 
     with {:ok, %CollectionResponse{items: basic_items}} <- Core.BggGateway.collection(username, bgg_params),
          {:ok, cached_things} <- Core.BggCacher.load_things_cache(basic_items) do
-      
+
       Logger.info("Loaded #{length(basic_items)} basic items, got #{length(cached_things)} cached items")
+
+      # Store the original unfiltered collection
+      original_items = cached_things
       
       # Apply client-side filtering to complete cached data
-      client_only_filters = extract_client_only_filters(filters)
-      filtered_items = apply_client_side_filters(cached_things, client_only_filters)
+      filtered_items = Thing.filter_by(cached_things, filters)
       total_items = length(filtered_items)
-      
+
       Logger.info("After client-side filtering: #{total_items} items")
-      
+
       # Get current page items from filtered results
       current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
-      
+
       socket =
         socket
-        |> assign(:all_collection_items, filtered_items)
-        |> assign(:collection_items, current_page_items)
+        |> assign(:original_collection_items, original_items)  # Store original unfiltered data
+        |> assign(:all_collection_items, filtered_items)      # Store filtered results for pagination
+        |> assign(:collection_items, current_page_items)      # Store current page items
         |> assign(:total_items, total_items)
         |> assign(:collection_loading, false)
         |> assign(:search_error, nil)
@@ -223,8 +236,8 @@ defmodule Web.CollectionLive do
 
 
   @impl true
-  def handle_info({:load_modal_details, thing_id}, socket) do
-    case Core.BggGateway.things([thing_id], []) do
+  def handle_info({:load_modal_details, thing}, socket) do
+    case Core.BggCacher.load_things_cache([thing]) do
       {:ok, [detailed_thing]} ->
         socket =
           socket
@@ -273,18 +286,25 @@ defmodule Web.CollectionLive do
       collection_url = build_collection_url(username, filters, advanced_search: true)
 
       cond do
-        # Same username - apply filters and use push_patch to stay on page
+        # Same username - try client-side filtering first
         username == current_username ->
           socket =
             socket
-            |> assign(:filters, filters)
             |> assign(:advanced_search, true)
             |> assign(:collection_loading, true)
             |> assign(:search_error, nil)
 
-          # Reload collection with new filters
-          send(self(), {:load_collection_with_filters, username, filters})
-          {:noreply, push_patch(socket, to: collection_url)}
+          case reapply_filters_to_collection(socket, filters) do
+            {:ok, updated_socket} ->
+              Logger.info("Advanced search applied filters client-side without API call")
+              {:noreply, push_patch(updated_socket, to: collection_url)}
+            
+            {:reload_needed, socket} ->
+              Logger.info("Original collection not available for advanced search, reloading from API")
+              # Reload collection with new filters
+              send(self(), {:load_collection_with_filters, username, filters})
+              {:noreply, push_patch(socket, to: collection_url)}
+          end
 
         # Different username - need to load new collection
         true ->
@@ -297,6 +317,7 @@ defmodule Web.CollectionLive do
             |> assign(:search_error, nil)
             |> assign(:current_page, 1)
             |> assign(:all_collection_items, [])
+            |> assign(:original_collection_items, [])
             |> assign(:collection_items, [])
             |> assign(:total_items, 0)
 
@@ -433,7 +454,7 @@ defmodule Web.CollectionLive do
         |> assign(:modal_error, nil)
 
       # Load detailed information for this specific thing
-      send(self(), {:load_modal_details, thing_id})
+      send(self(), {:load_modal_details, selected_thing})
       {:noreply, socket}
     else
       {:noreply, socket}
@@ -486,14 +507,12 @@ defmodule Web.CollectionLive do
 
   @impl true
   def handle_event("retry_modal", _params, socket) do
-    thing_id = socket.assigns.selected_thing.id
-
     socket =
       socket
       |> assign(:modal_loading, true)
       |> assign(:modal_error, nil)
 
-    send(self(), {:load_modal_details, thing_id})
+    send(self(), {:load_modal_details, socket.assigns.selected_thing})
     {:noreply, socket}
   end
 
@@ -521,7 +540,7 @@ defmodule Web.CollectionLive do
   defp load_current_page(socket) do
     # With caching, we already have all data and just need to paginate
     current_page_items = get_current_page_items(socket)
-    
+
     socket =
       socket
       |> assign(:collection_loading, false)
@@ -578,33 +597,19 @@ defmodule Web.CollectionLive do
   end
 
   # Convert client-side filters to BGG API collection parameters
-  defp convert_filters_to_bgg_params(filters) when filters == %{}, do: [stats: 1]
-
   defp convert_filters_to_bgg_params(filters) do
+    IO.inspect(filters, label: "Converting filters to BGG params")
     # Start with default parameters
     bgg_params = [stats: 1]
 
     # Convert supported filters to BGG API parameters
     bgg_params
-    |> maybe_add_bgg_param("minrating", Map.get(filters, :average))
     |> maybe_add_bgg_param("minbggrating", Map.get(filters, :average))
     |> maybe_add_bgg_param("own", get_ownership_filter(filters))
   end
 
   # Helper to add BGG API parameter if filter value exists
-  defp maybe_add_bgg_param(params, _key, nil), do: params
-  defp maybe_add_bgg_param(params, _key, ""), do: params
-
-  defp maybe_add_bgg_param(params, key, value) when key in ["minrating", "minbggrating"] do
-    case parse_integer(value) do
-      rating when is_integer(rating) and rating >= 1 and rating <= 10 ->
-        Keyword.put(params, String.to_atom(key), rating)
-
-      _ ->
-        params
-    end
-  end
-
+  defp maybe_add_bgg_param(params, _key, value) when value in [nil, ""], do: params
   defp maybe_add_bgg_param(params, key, value) do
     Keyword.put(params, String.to_atom(key), value)
   end
@@ -637,12 +642,38 @@ defmodule Web.CollectionLive do
   end
 
   # Apply client-side filtering using Thing.filter_by/2
-  defp apply_client_side_filters(things, filters) when filters == %{} do
-    things
-  end
-
   defp apply_client_side_filters(things, filters) do
     Thing.filter_by(things, filters)
+  end
+
+  # Reapply filters to existing collection without API call
+  defp reapply_filters_to_collection(socket, new_filters) do
+    original_items = socket.assigns.original_collection_items
+    
+    # If we don't have original collection data, fall back to API reload
+    if Enum.empty?(original_items) do
+      {:reload_needed, socket}
+    else
+      # Apply new filters to original collection
+      filtered_items = Thing.filter_by(original_items, new_filters)
+      total_items = length(filtered_items)
+      
+      # Reset to page 1 when filters change
+      current_page = 1
+      current_page_items = get_current_page_items_from_list(filtered_items, current_page)
+      
+      updated_socket =
+        socket
+        |> assign(:filters, new_filters)
+        |> assign(:all_collection_items, filtered_items)
+        |> assign(:collection_items, current_page_items)
+        |> assign(:current_page, current_page)
+        |> assign(:total_items, total_items)
+        |> assign(:collection_loading, false)
+        |> assign(:search_error, nil)
+      
+      {:ok, updated_socket}
+    end
   end
 
   # Add non-empty values to filter map

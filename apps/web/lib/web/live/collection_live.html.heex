@@ -1,13 +1,15 @@
-<Web.Components.HeaderComponent.header username={@username} />
+<Web.Components.HeaderComponent.header username={@username} advanced_search={@advanced_search} />
 
 <div class="maincontent">
-  <%= if @advanced_search do %>
-    <!-- Advanced Search Form - shown for both /collection?advanced_search=true and /collection/:username?advanced_search=true -->
-    <Web.Components.AdvancedSearchComponent.advanced_search_form
-      username={@username}
-      filters={@filters}
-    />
-  <% end %>
+  <!-- Advanced Search Container - always present to prevent layout shifts -->
+  <div class="advanced-search-container">
+    <%= if @advanced_search do %>
+      <Web.Components.AdvancedSearchComponent.advanced_search_form
+        username={@username}
+        filters={@filters}
+      />
+    <% end %>
+  </div>
 
   <%= if @username do %>
     <!-- Collection content only shown when username is present -->

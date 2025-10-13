@@ -22,12 +22,6 @@ config :web, Web.Endpoint,
   secret_key_base: "w5FjubOty76o4PMpifOcM8eaKWyruXMo8s1nOSpjfGNilK+cNYPf9s6cLaHav8Dg",
   server: false
 
-# We don't run a server during test. If one is required,
-# you can enable the server option below.
-config :web, WebWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
-  secret_key_base: "SGAPXk5/T+PnZGJZV8fysSvhzLuMyh1hOp7JHPsBOhxxxzRyNp7ny8pavQY7Rrfl",
-  server: false
 
 # In test we don't send emails
 
