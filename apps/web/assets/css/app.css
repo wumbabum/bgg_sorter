@@ -182,6 +182,16 @@
   outline-offset: 2px;
 }
 
+/* Active state for Advanced Search button */
+.nav-button.active {
+  background-color: #22c55e;
+  color: white;
+}
+
+.nav-button.active:hover {
+  background-color: #16a34a;
+}
+
 .global-header-nav-search {
   display: flex;
   align-items: center;
@@ -234,6 +244,39 @@
   padding: 12px 15px;
   margin-bottom: 0;
   background-color: #f8f8f8;
+}
+
+.search-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.search-title-section {
+  flex: 1;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  margin-left: 15px;
+  flex-shrink: 0;
+}
+
+.close-button:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: #333;
 }
 
 .collection-title {
@@ -641,6 +684,14 @@
   overflow-y: auto;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
   position: relative;
+  /* Hide scrollbar while maintaining functionality */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.modal-content::-webkit-scrollbar {
+  width: 0; /* Chrome, Safari, Opera */
+  display: none;
 }
 
 .modal-header {
