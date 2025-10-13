@@ -15,6 +15,8 @@ defmodule Core.Schemas.ThingTest do
           minplayers: "1",
           maxplayers: "5",
           playingtime: "70",
+          minplaytime: "40",
+          maxplaytime: "75",
           minage: "10",
           rank: "15",
           averageweight: "2.44",
@@ -28,6 +30,8 @@ defmodule Core.Schemas.ThingTest do
           minplayers: "2",
           maxplayers: "4", 
           playingtime: "45",
+          minplaytime: "30",
+          maxplaytime: "45",
           minage: "8",
           rank: "45",
           averageweight: "1.78",
@@ -41,6 +45,8 @@ defmodule Core.Schemas.ThingTest do
           minplayers: "1",
           maxplayers: "4",
           playingtime: "120",
+          minplaytime: "60",
+          maxplaytime: "120",
           minage: "14", 
           rank: "1",
           averageweight: "3.86",
@@ -54,6 +60,8 @@ defmodule Core.Schemas.ThingTest do
           minplayers: "2",
           maxplayers: "2",
           playingtime: "45",
+          minplaytime: "20",
+          maxplaytime: "60",
           minage: "14",
           rank: "81",
           averageweight: "3.413",
@@ -67,6 +75,8 @@ defmodule Core.Schemas.ThingTest do
           minplayers: "5",
           maxplayers: "10",
           playingtime: "30",
+          minplaytime: "20",
+          maxplaytime: "30",
           minage: "13",
           rank: "437",
           averageweight: "1.591",
@@ -137,22 +147,35 @@ defmodule Core.Schemas.ThingTest do
       assert [%Thing{primary_name: "The Resistance"}] = Thing.filter_by(things, %{players: "6"})
     end
 
-    test "filters by playing time min", %{things: things} do
-      # Should return Wingspan (70) and Gloomhaven (120)
-      result = Thing.filter_by(things, %{playingtime_min: "60"})
-      assert length(result) == 2
+    test "filters by playing time (range inclusion)", %{things: things} do
+      # Test games that include 45 minutes in their range:
+      # - Wingspan: 40-75 min (✓)
+      # - Azul: 30-45 min (✓) 
+      # - Gloomhaven: 60-120 min (✗)
+      # - Android: Netrunner: 20-60 min (✓)
+      # - The Resistance: 20-30 min (✗)
+      result = Thing.filter_by(things, %{playingtime: "45"})
+      assert length(result) == 3
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
-      assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
-    end
-
-    test "filters by playing time max", %{things: things} do
-      # Should return Azul (45), Wingspan (70), Android: Netrunner (45), The Resistance (30)
-      result = Thing.filter_by(things, %{playingtime_max: "70"})
-      assert length(result) == 4
       assert Enum.any?(result, &(&1.primary_name == "Azul"))
-      assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
+      assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
+      
+      # Test games that include 25 minutes in their range:
+      # - Wingspan: 40-75 min (✗)
+      # - Azul: 30-45 min (✗)
+      # - Gloomhaven: 60-120 min (✗) 
+      # - Android: Netrunner: 20-60 min (✓)
+      # - The Resistance: 20-30 min (✓)
+      result = Thing.filter_by(things, %{playingtime: "25"})
+      assert length(result) == 2
       assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
       assert Enum.any?(result, &(&1.primary_name == "The Resistance"))
+      
+      # Test games that include 100 minutes in their range:
+      # Only Gloomhaven: 60-120 min should match
+      result = Thing.filter_by(things, %{playingtime: "100"})
+      assert length(result) == 1
+      assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
     end
 
     test "filters by minimum age", %{things: things} do
@@ -199,13 +222,24 @@ defmodule Core.Schemas.ThingTest do
     end
 
     test "combines multiple filters", %{things: things} do
-      _filters = %{
-        players: "4",           # All three support 4 players
-        yearpublished_min: "2017", # All three are 2017+
-        playingtime_max: "80"   # Wingspan (70) and Azul (45), not Gloomhaven (120)
-      }
+      # Test combination of filters:
+      # - players: "4" -> Wingspan (1-5), Azul (2-4), Gloomhaven (1-4) support 4 players
+      # - playingtime: "50" -> should be within playing time range:
+      #   - Wingspan: 40-75 min (✓)
+      #   - Azul: 30-45 min (✗) - 50 is outside range
+      #   - Gloomhaven: 60-120 min (✗) - 50 is outside range
       
-      result = Thing.filter_by(things, %{players: "4", playingtime_max: "80"})
+      result = Thing.filter_by(things, %{players: "4", playingtime: "50"})
+      assert length(result) == 1
+      assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
+      
+      # Test another combination:
+      # - players: "3" -> Wingspan (1-5), Azul (2-4), Gloomhaven (1-4) support 3 players
+      # - playingtime: "40" -> should be within playing time range:
+      #   - Wingspan: 40-75 min (✓)
+      #   - Azul: 30-45 min (✓)
+      #   - Gloomhaven: 60-120 min (✗)
+      result = Thing.filter_by(things, %{players: "3", playingtime: "40"})
       assert length(result) == 2
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
       assert Enum.any?(result, &(&1.primary_name == "Azul"))

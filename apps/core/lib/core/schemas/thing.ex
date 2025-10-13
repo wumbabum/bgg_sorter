@@ -137,109 +137,69 @@ defmodule Core.Schemas.Thing do
     end)
   end
 
-  # Individual filter matching functions
-  defp matches_filter?(thing, :primary_name, search_term) do
-    String.contains?(String.downcase(thing.primary_name || ""), String.downcase(search_term))
-  end
-
-  defp matches_filter?(thing, :yearpublished_min, min_year) do
-    case {parse_integer(thing.yearpublished), parse_integer(min_year)} do
-      {thing_year, min_year_int} when is_integer(thing_year) and is_integer(min_year_int) ->
-        thing_year >= min_year_int
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :yearpublished_max, max_year) do
-    case {parse_integer(thing.yearpublished), parse_integer(max_year)} do
-      {thing_year, max_year_int} when is_integer(thing_year) and is_integer(max_year_int) ->
-        thing_year <= max_year_int
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :players, target_players) do
-    case {parse_integer(thing.minplayers), parse_integer(thing.maxplayers), parse_integer(target_players)} do
-      {min_p, max_p, target} when is_integer(min_p) and is_integer(max_p) and is_integer(target) ->
-        target >= min_p and target <= max_p
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :playingtime_min, min_time) do
-    case {parse_integer(thing.playingtime), parse_integer(min_time)} do
-      {thing_time, min_time_int} when is_integer(thing_time) and is_integer(min_time_int) ->
-        thing_time >= min_time_int
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :playingtime_max, max_time) do
-    case {parse_integer(thing.playingtime), parse_integer(max_time)} do
-      {thing_time, max_time_int} when is_integer(thing_time) and is_integer(max_time_int) ->
-        thing_time <= max_time_int
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :minage, max_minage) do
-    case {parse_integer(thing.minage), parse_integer(max_minage)} do
-      {thing_minage, max_minage_int} when is_integer(thing_minage) and is_integer(max_minage_int) ->
-        # Game min age should be <= filter (younger or same)
-        thing_minage <= max_minage_int
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :rank, max_rank) do
-    case {parse_integer(thing.rank), parse_integer(max_rank)} do
-      {thing_rank, max_rank_int} when is_integer(thing_rank) and is_integer(max_rank_int) and thing_rank > 0 ->
-        # Lower rank number is better
-        thing_rank <= max_rank_int
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :average, min_rating) do
-    case {parse_float(thing.average), parse_float(min_rating)} do
-      {thing_rating, min_rating_float} when is_float(thing_rating) and is_float(min_rating_float) ->
-        thing_rating >= min_rating_float
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :averageweight_min, min_weight) do
-    case {parse_float(thing.averageweight), parse_float(min_weight)} do
-      {thing_weight, min_weight_float} when is_float(thing_weight) and is_float(min_weight_float) ->
-        thing_weight >= min_weight_float
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :averageweight_max, max_weight) do
-    case {parse_float(thing.averageweight), parse_float(max_weight)} do
-      {thing_weight, max_weight_float} when is_float(thing_weight) and is_float(max_weight_float) ->
-        thing_weight <= max_weight_float
-      _ ->
-        true
-    end
-  end
-
-  defp matches_filter?(thing, :description, search_term) do
-    String.contains?(String.downcase(thing.description || ""), String.downcase(search_term))
-  end
+  # Individual filter matching functions - one line each using helper functions
+  defp matches_filter?(thing, :primary_name, search_term), do: string_contains?(thing.primary_name, search_term)
+  defp matches_filter?(thing, :yearpublished_min, min_year), do: integer_gte?(thing.yearpublished, min_year)
+  defp matches_filter?(thing, :yearpublished_max, max_year), do: integer_lte?(thing.yearpublished, max_year)
+  defp matches_filter?(thing, :players, target_players), do: in_integer_range?(target_players, thing.minplayers, thing.maxplayers)
+  defp matches_filter?(thing, :playingtime, target_time), do: in_integer_range?(target_time, thing.minplaytime, thing.maxplaytime)
+  defp matches_filter?(thing, :minage, max_minage), do: integer_lte?(thing.minage, max_minage)
+  defp matches_filter?(thing, :rank, max_rank), do: integer_lte_positive?(thing.rank, max_rank)
+  defp matches_filter?(thing, :average, min_rating), do: float_gte?(thing.average, min_rating)
+  defp matches_filter?(thing, :averageweight_min, min_weight), do: float_gte?(thing.averageweight, min_weight)
+  defp matches_filter?(thing, :averageweight_max, max_weight), do: float_lte?(thing.averageweight, max_weight)
+  defp matches_filter?(thing, :description, search_term), do: string_contains?(thing.description, search_term)
 
   # Skip unknown filters
   defp matches_filter?(_thing, _key, _value), do: true
+
+  # Helper functions for filter matching
+  defp string_contains?(field_value, search_term) do
+    String.contains?(String.downcase(field_value || ""), String.downcase(search_term))
+  end
+
+  defp integer_gte?(field_value, min_value) do
+    case {parse_integer(field_value), parse_integer(min_value)} do
+      {field_int, min_int} when is_integer(field_int) and is_integer(min_int) -> field_int >= min_int
+      _ -> true
+    end
+  end
+
+  defp integer_lte?(field_value, max_value) do
+    case {parse_integer(field_value), parse_integer(max_value)} do
+      {field_int, max_int} when is_integer(field_int) and is_integer(max_int) -> field_int <= max_int
+      _ -> true
+    end
+  end
+
+  defp integer_lte_positive?(field_value, max_value) do
+    case {parse_integer(field_value), parse_integer(max_value)} do
+      {field_int, max_int} when is_integer(field_int) and is_integer(max_int) and field_int > 0 -> field_int <= max_int
+      _ -> true
+    end
+  end
+
+  defp in_integer_range?(target_value, min_field, max_field) do
+    case {parse_integer(target_value), parse_integer(min_field), parse_integer(max_field)} do
+      {target, min_val, max_val} when is_integer(target) and is_integer(min_val) and is_integer(max_val) ->
+        target >= min_val and target <= max_val
+      _ -> true
+    end
+  end
+
+  defp float_gte?(field_value, min_value) do
+    case {parse_float(field_value), parse_float(min_value)} do
+      {field_float, min_float} when is_float(field_float) and is_float(min_float) -> field_float >= min_float
+      _ -> true
+    end
+  end
+
+  defp float_lte?(field_value, max_value) do
+    case {parse_float(field_value), parse_float(max_value)} do
+      {field_float, max_float} when is_float(field_float) and is_float(max_float) -> field_float <= max_float
+      _ -> true
+    end
+  end
 
   # Helper functions for parsing
   defp parse_integer(value) when is_binary(value) do

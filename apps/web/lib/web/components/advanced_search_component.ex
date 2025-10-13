@@ -53,13 +53,14 @@ defmodule Web.Components.AdvancedSearchComponent do
     <!-- Number of Players -->
             <AdvancedSearchInputComponent.player_select selected_players={@filters[:players] || ""} />
 
-    <!-- Playing Time Range -->
-            <AdvancedSearchInputComponent.range_input
+    <!-- Playing Time -->
+            <AdvancedSearchInputComponent.number_input
               id="search-playtime"
               name="playingtime"
               label="Playing Time (minutes)"
-              min_value={@filters[:playingtime_min] || ""}
-              max_value={@filters[:playingtime_max] || ""}
+              value={@filters[:playingtime] || ""}
+              placeholder="Time in minutes"
+              suffix="minutes"
             />
 
     <!-- Minimum Age -->

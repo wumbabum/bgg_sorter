@@ -586,8 +586,7 @@ defmodule Web.CollectionLive do
     |> maybe_put_filter(:yearpublished_min, Map.get(params, "yearpublished_min"))
     |> maybe_put_filter(:yearpublished_max, Map.get(params, "yearpublished_max"))
     |> maybe_put_filter(:players, Map.get(params, "players"))
-    |> maybe_put_filter(:playingtime_min, Map.get(params, "playingtime_min"))
-    |> maybe_put_filter(:playingtime_max, Map.get(params, "playingtime_max"))
+    |> maybe_put_filter(:playingtime, Map.get(params, "playingtime"))
     |> maybe_put_filter(:minage, Map.get(params, "minage"))
     |> maybe_put_filter(:average, Map.get(params, "average"))
     |> maybe_put_filter(:rank, Map.get(params, "rank"))
@@ -621,30 +620,6 @@ defmodule Web.CollectionLive do
     1
   end
 
-  # Extract only the filters that need client-side processing (BGG API doesn't support)
-  defp extract_client_only_filters(filters) do
-    filters
-    |> Map.take([
-      :primary_name,
-      :yearpublished_min,
-      :yearpublished_max,
-      :players,
-      :playingtime_min,
-      :playingtime_max,
-      :minage,
-      :rank,
-      :averageweight_min,
-      :averageweight_max,
-      :description
-    ])
-    |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
-    |> Enum.into(%{})
-  end
-
-  # Apply client-side filtering using Thing.filter_by/2
-  defp apply_client_side_filters(things, filters) do
-    Thing.filter_by(things, filters)
-  end
 
   # Reapply filters to existing collection without API call
   defp reapply_filters_to_collection(socket, new_filters) do
@@ -680,16 +655,6 @@ defmodule Web.CollectionLive do
   defp maybe_put_filter(filters, _key, value) when value in [nil, ""], do: filters
   defp maybe_put_filter(filters, key, value), do: Map.put(filters, key, value)
 
-  # Helper functions for parsing
-  defp parse_integer(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {int_val, _} -> int_val
-      _ -> nil
-    end
-  end
-
-  defp parse_integer(value) when is_integer(value), do: value
-  defp parse_integer(_), do: nil
 
 
 
