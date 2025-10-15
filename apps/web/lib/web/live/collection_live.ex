@@ -64,6 +64,7 @@ defmodule Web.CollectionLive do
       |> assign(:selected_mechanics, MapSet.new())
       |> assign(:all_mechanics_expanded, false)
       |> assign(:popular_mechanics, [])
+      |> assign(:mechanics_loading, false)
       |> assign(:mechanics_search_query, "")
       |> assign(:mechanics_search_results, [])
 
@@ -124,6 +125,7 @@ defmodule Web.CollectionLive do
       |> assign(:selected_mechanics, MapSet.new())
       |> assign(:all_mechanics_expanded, false)
       |> assign(:popular_mechanics, [])
+      |> assign(:mechanics_loading, false)
       |> assign(:mechanics_search_query, "")
       |> assign(:mechanics_search_results, [])
 
@@ -825,8 +827,48 @@ defmodule Web.CollectionLive do
     socket = 
       if new_expanded and Enum.empty?(socket.assigns.popular_mechanics) do
         Logger.info("Loading popular mechanics")
-        popular_mechanics = Core.Repo.all(Core.Schemas.Mechanic.most_popular(20))
-        assign(socket, :popular_mechanics, popular_mechanics)
+        # Set loading state first
+        socket = assign(socket, :mechanics_loading, true)
+        
+        try do
+          # First check if there are any mechanics at all
+          total_mechanics = Core.Repo.aggregate(Core.Schemas.Mechanic, :count)
+          Logger.info("🔍 MECHANICS DEBUG: Total mechanics in database: #{total_mechanics}")
+          
+          # Check if there are any thing_mechanics associations
+          total_associations = Core.Repo.aggregate(Core.Schemas.ThingMechanic, :count)
+          Logger.info("🔍 MECHANICS DEBUG: Total thing_mechanic associations: #{total_associations}")
+          
+          popular_mechanics = Core.Repo.all(Core.Schemas.Mechanic.most_popular(50))
+          Logger.info("🔍 MECHANICS DEBUG: Loaded #{length(popular_mechanics)} popular mechanics")
+          
+          # If no popular mechanics found, try loading seeded mechanics alphabetically
+          final_mechanics = 
+            if Enum.empty?(popular_mechanics) do
+              Logger.info("🔍 MECHANICS DEBUG: No popular mechanics, loading 50 seeded mechanics alphabetically")
+              Core.Repo.all(from m in Core.Schemas.Mechanic, limit: 50, order_by: m.name)
+            else
+              popular_mechanics
+            end
+          
+          socket
+          |> assign(:popular_mechanics, final_mechanics)
+          |> assign(:mechanics_loading, false)
+        rescue
+          error ->
+            Logger.error("Failed to load popular mechanics: #{inspect(error)}")
+            # Try to load any mechanics as fallback
+            fallback_mechanics = 
+              try do
+                Core.Repo.all(from m in Core.Schemas.Mechanic, limit: 50, order_by: m.name)
+              rescue
+                _ -> []
+              end
+            Logger.info("🔍 MECHANICS DEBUG: Fallback loaded #{length(fallback_mechanics)} mechanics")
+            socket
+            |> assign(:popular_mechanics, fallback_mechanics)
+            |> assign(:mechanics_loading, false)
+        end
       else
         socket
       end

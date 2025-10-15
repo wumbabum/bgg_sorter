@@ -105,6 +105,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               selected_mechanics={Map.get(assigns, :selected_mechanics, MapSet.new())}
               all_mechanics_expanded={Map.get(assigns, :all_mechanics_expanded, false)}
               popular_mechanics={Map.get(assigns, :popular_mechanics, [])}
+              mechanics_loading={Map.get(assigns, :mechanics_loading, false)}
               mechanics_search_query={Map.get(assigns, :mechanics_search_query, "")}
               mechanics_search_results={Map.get(assigns, :mechanics_search_results, [])}
             />

@@ -43,7 +43,7 @@ RUN mix assets.deploy
 # Compile the release
 RUN mix compile
 
-# Build the release
+# Build the release (only bgg_sorter release exists)
 RUN MIX_ENV=prod mix release
 
 # Clean up build artifacts

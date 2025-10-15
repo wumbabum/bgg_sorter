@@ -10,7 +10,7 @@ primary_region = 'sjc'
   dockerfile = 'Dockerfile'
 
 [deploy]
-  release_command = './bin/bgg_sorter eval Core.Release.migrate()'
+  release_command = './bin/bgg_sorter eval Core.Release.migrate_and_seed()'
 
 [env]
   ECTO_IPV6 = 'true'
@@ -26,9 +26,9 @@ primary_region = 'sjc'
 [http_service]
   internal_port = 7384
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
 
   [[http_service.checks]]
@@ -39,7 +39,7 @@ primary_region = 'sjc'
     path = '/'
 
 [[vm]]
-  memory = '512mb'
+  memory = '256mb'
   cpu_kind = 'shared'
   cpus = 1
 

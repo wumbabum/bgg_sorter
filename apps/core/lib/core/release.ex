@@ -31,6 +31,47 @@ defmodule Core.Release do
   end
 
   @doc """
+  Seeds the database with initial data.
+
+  This function runs the seeds.exs file to populate the database with
+  essential data like common mechanics.
+
+  ## Examples
+
+      # From a release console:
+      Core.Release.seed()
+      
+      # From command line:
+      ./bin/bgg_sorter eval "Core.Release.seed()"
+  """
+  def seed do
+    load_app()
+
+    for repo <- repos() do
+      {:ok, _, _} = Ecto.Migrator.with_repo(repo, fn _repo ->
+        # Run the seeds file
+        seeds_file = Application.app_dir(:core, "priv/repo/seeds.exs")
+        if File.exists?(seeds_file) do
+          IO.puts("Running seeds from #{seeds_file}")
+          Code.eval_file(seeds_file)
+        else
+          IO.puts("No seeds file found at #{seeds_file}")
+        end
+      end)
+    end
+  end
+
+  @doc """
+  Runs migrations and then seeds the database.
+
+  Convenience function for deployment that ensures both schema and data are ready.
+  """
+  def migrate_and_seed do
+    migrate()
+    seed()
+  end
+
+  @doc """
   Rolls back the database to a previous migration version.
 
   ## Parameters

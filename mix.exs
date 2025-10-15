@@ -39,12 +39,6 @@ defmodule BggSorter.MixProject do
           core: :permanent,
           web: :permanent
         ]
-      ],
-      service: [
-        applications: [
-          core: :permanent,
-          service: :permanent
-        ]
       ]
     ]
   end
