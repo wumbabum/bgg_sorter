@@ -24,7 +24,7 @@ defmodule Web.Components.MechanicsSearchComponent do
           <div class="mechanics-all-section">
             <span
               class={"mechanic-tag mechanic-tag--all " <> if(@all_mechanics_expanded, do: "mechanic-tag--toggled", else: "")}
-              phx-click="toggle_all_mechanics"
+              phx-click="toggle_mechanic"
               phx-value-mechanic_id="all"
               tabindex="0"
             >

@@ -834,6 +834,7 @@ defmodule Web.CollectionLive do
     current_expanded = Map.get(socket.assigns, :all_mechanics_expanded, false)
     new_expanded = !current_expanded
     
+    Logger.info("🔷 ALL BUTTON: Clicked 'All' button - expanding: #{new_expanded}")
     Logger.info("🔍 MECHANICS DEBUG: Toggling mechanics expansion: #{new_expanded}")
     
     socket = assign(socket, :all_mechanics_expanded, new_expanded)

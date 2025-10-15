@@ -1029,6 +1029,7 @@
   font-size: 13px;
   font-weight: normal;
   text-decoration: none;
+  text-transform: lowercase;
   transition: all 0.2s ease;
   cursor: pointer;
   user-select: none;
@@ -1066,7 +1067,7 @@
 }
 
 .mechanic-tag--small {
-  padding: 3px 8px;
+  padding: 2px 4px;
   font-size: 11px;
 }
 

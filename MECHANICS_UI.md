@@ -444,72 +444,93 @@ The system delivers a premium user experience with instant responsiveness while 
 
 ---
 
-## 🐛 Production Issue: Modal Mechanics Not Loading
+## 🐛 Production Issue: Modal Mechanics Not Loading → ✅ **RESOLVED**
 
-**Status**: 🔍 **INVESTIGATING**
+**Status**: ✅ **FIXED** - Schema version bump and comprehensive debug logging resolved the issue
 
-### Problem Description
-**Modal components in production are not displaying mechanics for games**, even though the games exist in the database. Production logs show:
+### Problem Description (Historical)
+**Modal components in production were not displaying mechanics for games**, even though the games existed in the database. This was due to games being cached before the mechanics system was implemented.
 
-```
-2025-10-15T04:55:06.750 app[148e7207b9d098] sjc [info] Loading modal details for thing: "7 Wonders" (ID: 68448)
-2025-10-15T04:55:07.213 app[148e7207b9d098] sjc [info] Loaded detailed thing: "7 Wonders"
-2025-10-15T04:55:07.213 app[148e7207b9d098] sjc [info] Thing mechanics: []
-```
+### Root Cause Identified ✅
+**Cache Staleness Issue**: Production Things were cached before mechanics system implementation and weren't being refreshed because they appeared "fresh" within the 1-week TTL.
 
-**Expected**: 7 Wonders should have ~14 mechanics (confirmed working locally)
-**Actual**: Production shows 0 mechanics for the same game
+### Resolution Implemented ✅
 
-### Root Cause Analysis
+**1. Schema Version Increment (2→3)**
+- Forces cache refresh for all existing Things in production
+- Triggers BGG API calls to fetch mechanics data
+- Rebuilds Thing-Mechanic associations automatically
 
-**BggCacher Investigation:**
-- ✅ BggCacher **does** preload mechanics: `preload: [:mechanics]` (line 146)
-- ✅ Modal loading calls BggCacher correctly
-- ❌ Production database missing mechanics associations for existing games
+**2. Memory Allocation Increase (256MB→1GB)**
+- Prevents OOM issues during bulk cache refresh
+- Handles 60+ games being refreshed simultaneously
 
-**Possible Causes:**
-1. **Database State Mismatch**: Production Things exist but lack mechanics associations
-2. **Migration Issue**: thing_mechanics table not properly populated in production
-3. **Seeding Gap**: Games loaded before mechanics seeding, associations never created
-4. **Cache Staleness**: Things cached before mechanics system, need refresh
+**3. BGG API Retry Logic Enhancement**
+- Added exponential backoff retry logic (1s→2s→4s→10s max)
+- Handles BGG rate limiting (429) and service errors (503)
+- Max 3 retries with 30s timeout per request
+- Comprehensive retry attempt logging
 
-### Investigation Plan
+**4. Comprehensive Debug Logging Pipeline**
+- **🌍 BGG HTTP**: Request timing and status codes
+- **🔄 BGG RETRY**: Retry attempts and delays  
+- **🕰️ CACHER TIMING**: Performance bottleneck identification
+- **🔍 BGG GATEWAY**: XML mechanics parsing from BGG API
+- **🔍 THING UPSERT**: Raw mechanics processing and checksum generation
+- **🔍 MECHANIC BULK**: Bulk mechanic creation and ID retrieval
+- **🔍 THING ASSOCIATIONS**: Thing-Mechanic relationship creation
+- **🔍 CACHER DEBUG**: Final mechanics loading verification
 
-**Phase 1: Database Diagnostics** 🔍
-- [ ] Add debug logging to BggCacher to show:
-  - Thing exists in database
-  - Mechanics associations count
-  - Sample mechanic names if present
-- [ ] Add production database queries to verify:
-  - Things table has records
-  - thing_mechanics table has associations
-  - mechanics table properly seeded
+### Current Production Status ✅
+- **✅ Modal mechanics loading correctly** - Games show proper mechanics count
+- **✅ Mechanics filtering functional** - Client-side filtering works with populated data  
+- **✅ Performance optimized** - 1GB memory handles refresh without issues
+- **✅ BGG API resilience** - Retry logic handles rate limiting gracefully
+- **✅ Debug visibility** - Comprehensive logging for future troubleshooting
 
-**Phase 2: Data Consistency Check** 🛠️
-- [ ] Compare local vs production database schema
-- [ ] Verify BGG API data processing creates associations
-- [ ] Check if Thing.upsert_thing mechanics processing works in production
+---
 
-**Phase 3: Resolution Strategy** ⚡
-- [ ] **Option A**: Force re-cache stale Things to rebuild associations
-- [ ] **Option B**: Run production seed command to backfill missing data
-- [ ] **Option C**: Add mechanics_checksum-based cache invalidation
+## 🎨 Recent UI/UX Enhancements ✅ **COMPLETED**
 
-### Debug Implementation
+### Enhanced "All" Toggle Button Styling
+**Professional toggle design with proper state management:**
 
-**Added Debugging:**
-- 🔍 BggCacher logging for mechanics loading
-- 📊 Production database state verification
-- 🎯 Thing-specific mechanics association tracking
+**Visual States:**
+- **Collapsed**: `▶ All` (right arrow) with light gray background
+- **Expanded**: `▼ All` (down arrow) with darker blue-gray background `#545482`
+- **Hover Effects**: Lighter variants of base state colors
+- **Active States**: Darker variants when actively clicking
+- **Sizing**: Slightly larger than mechanic tags (14px font, 5px padding)
 
-**Expected Debug Output:**
-```
-🔍 CACHER DEBUG: Thing 68448 (7 Wonders) has X mechanics
-🔍 CACHER DEBUG: First mechanic: [mechanic_name]
-```
+### Refined Mechanic Tags Design  
+**Sharp, professional tag appearance:**
 
-### Success Criteria
-- ✅ Modal components show mechanics for all games in production
-- ✅ Mechanics filtering works with production data
-- ✅ No performance regression from additional queries
-- ✅ Consistent behavior between local and production environments
+**Design Changes:**
+- **Height Reduction**: Less tall with `4px 10px` padding (vs previous `6px 12px`)
+- **Sharp Corners**: `border-radius: 1px` for crisp, BGG-style appearance
+- **Focus Outline Removal**: Clean `outline: none` for better visual consistency
+- **Enhanced State System**: Comprehensive hover/active states for all tag types
+
+**Interactive States:**
+- **Default**: Light gray `#f0f0f0` with subtle borders
+- **Hover**: Slightly lighter `#f5f5f5` with enhanced border contrast
+- **Active**: Darker `#e5e5e5` for tactile click feedback
+- **Selected**: Blue-gray `#545482` (darker than header `#3f3f74`)
+- **Selected+Hover**: Lighter variant `#5e5e8a`
+- **Selected+Active**: Darker variant `#4a4a78`
+
+### Color System Consistency
+**Unified color palette with proper contrast relationships:**
+- **Header Reference**: `#3f3f74` (BGG-style blue)
+- **Selected/Toggled State**: `#545482` (slightly more gray and darker than header)
+- **Hover Logic**: Always lighter than base state for visual lift
+- **Active Logic**: Always darker than base state for pressed feedback
+- **Smooth Transitions**: `0.2s ease` for professional state changes
+
+### Technical Implementation
+- **Custom "All" Button**: Replaced generic mechanic tag with specialized toggle component
+- **Arrow Management**: Dynamic arrow direction based on expansion state
+- **CSS Architecture**: Modular classes for maintainable styling system
+- **Accessibility Preservation**: Maintained keyboard navigation without visual outline
+
+**Current State**: Production-ready UI with polished visual feedback system matching BGG design language.
