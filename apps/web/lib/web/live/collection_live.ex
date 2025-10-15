@@ -253,8 +253,10 @@ defmodule Web.CollectionLive do
 
         {:noreply, socket}
 
-      # Sort parameters changed - reload with new database sorting
+      # Sort parameters changed - re-sort existing cached data
       sort_field != current_sort_field or sort_direction != current_sort_direction ->
+        original_items = socket.assigns.original_collection_items
+        
         socket =
           socket
           |> assign(:sort_by, sort_field)
@@ -265,9 +267,46 @@ defmodule Web.CollectionLive do
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
-        # Reload collection with new sort parameters
-        send(self(), {:load_collection_with_filters, username, filters})
-        {:noreply, socket}
+        if Enum.empty?(original_items) do
+          # No cached data available - reload from BGG API
+          Logger.info("No cached data available for sorting, reloading from API")
+          send(self(), {:load_collection_with_filters, username, filters})
+          {:noreply, socket}
+        else
+          # Re-sort existing cached data using database operations
+          Logger.info("Re-sorting #{length(original_items)} cached items with new sort: #{sort_field} #{sort_direction}")
+          
+          # Extract client-only filters and add selected mechanics
+          client_filters = extract_client_only_filters(filters)
+          client_filters_with_mechanics = Map.put(client_filters, :selected_mechanics, MapSet.to_list(socket.assigns.selected_mechanics))
+          
+          # Use BggCacher to re-sort with database-level operations
+          case Core.BggCacher.load_things_cache(
+            original_items,
+            client_filters_with_mechanics,
+            sort_field,
+            sort_direction
+          ) do
+            {:ok, sorted_items} ->
+              # Update with newly sorted data
+              total_items = length(sorted_items)
+              current_page_items = get_current_page_items_from_list(sorted_items, 1)
+              
+              updated_socket =
+                socket
+                |> assign(:all_collection_items, sorted_items)
+                |> assign(:collection_items, current_page_items)
+                |> assign(:total_items, total_items)
+                |> assign(:collection_loading, false)
+              
+              {:noreply, updated_socket}
+              
+            {:error, reason} ->
+              Logger.warning("Database sorting failed: #{inspect(reason)}, falling back to reload")
+              send(self(), {:load_collection_with_filters, username, filters})
+              {:noreply, socket}
+          end
+        end
 
       # Same username and filters, but different page - just paginate existing data
       page != current_page ->

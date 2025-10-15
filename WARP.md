@@ -151,10 +151,21 @@ The BGG XML API2 contains comprehensive mechanics data that can be integrated in
 
 ### Full Migration Plan
 
-**See [MECHANICS_MIGRATION.md](./MECHANICS_MIGRATION.md) for the complete 8-phase implementation plan**, including:
+**See [MECHANICS_MIGRATION.md](./ai-docs/MECHANICS_MIGRATION.md) for the complete 8-phase implementation plan**, including:
 
 - **Phase 0**: Rollback current implementation
 - **Phases 1-2**: Create Mechanic and ThingMechanic schemas with proper indexing
 - **Phases 3-4**: Update Thing associations and BGG XML parsing
 - **Phases 5-6**: Implement efficient upserts and join-based filtering
 - **Phases 7-8**: Add preloading throughout application and comprehensive testing
+
+## AI Documentation
+
+Warp agents can reference these specialized documents in the `ai-docs/` directory:
+
+- `BGG_SORTING.md` - Sorting and filtering performance issues and fixes
+- `BGG_STYLING_UPDATES.md` - Visual styling improvements and BGG design compliance
+- `FLY_DEPLOYMENT.md` - Fly.io deployment configuration and procedures
+- `MECHANICS_MIGRATION.md` - Complete 8-phase mechanics integration implementation
+- `MECHANICS_UI.md` - Comprehensive mechanics UI system implementation
+- `WARP_ORIGINAL.md` - Historical Warp agent instructions and project evolution
