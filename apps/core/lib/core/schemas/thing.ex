@@ -58,7 +58,7 @@ defmodule Core.Schemas.Thing do
     field :owned, :string
     field :averageweight, :string
     field :mechanics_checksum, :string
-    field :schema_version, :integer, default: 2
+    field :schema_version, :integer, default: 3
 
     # Associations
     has_many :thing_mechanics, Core.Schemas.ThingMechanic, on_delete: :delete_all
@@ -100,9 +100,17 @@ defmodule Core.Schemas.Thing do
   def upsert_thing(params) when is_map(params) do
     # Extract raw_mechanics if present (from BggGateway)
     raw_mechanics = Map.get(params, "raw_mechanics") || Map.get(params, :raw_mechanics)
+    
+    # DEBUG: Log raw mechanics data
+    thing_id = Map.get(params, "id") || Map.get(params, :id)
+    Logger.info("🔍 THING UPSERT: Thing #{thing_id} raw_mechanics: #{inspect(raw_mechanics)}")
 
     # Process mechanics and generate checksum
     {mechanics_list, new_checksum} = process_raw_mechanics(raw_mechanics)
+    
+    # DEBUG: Log processed mechanics
+    Logger.info("🔍 THING UPSERT: Thing #{thing_id} processed mechanics: #{inspect(mechanics_list)}")
+    Logger.info("🔍 THING UPSERT: Thing #{thing_id} new_checksum: #{inspect(new_checksum)}")
 
     # Ensure last_cached and schema_version are set with current values
     current_time = DateTime.utc_now()
@@ -111,7 +119,7 @@ defmodule Core.Schemas.Thing do
       |> stringify_keys()
       |> Map.delete("raw_mechanics")  # Remove virtual field
       |> Map.put("last_cached", current_time)
-      |> Map.put("schema_version", 2)
+      |> Map.put("schema_version", 3)
       # Don't set mechanics_checksum yet - we'll do that after processing mechanics
 
     changeset = changeset(%__MODULE__{}, params_with_timestamp)
@@ -347,6 +355,7 @@ defmodule Core.Schemas.Thing do
 
   defp update_thing_mechanics(thing, [], nil) do
     # No mechanics to process
+    Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - No mechanics to process")
     {:ok, thing}
   end
 
@@ -354,14 +363,26 @@ defmodule Core.Schemas.Thing do
     # Check if mechanics need updating by comparing checksums
     current_checksum = thing.mechanics_checksum
     
+    Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - Comparing checksums")
+    Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - Current: #{inspect(current_checksum)}")
+    Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - New: #{inspect(new_checksum)}")
+    Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - Mechanics list: #{inspect(mechanics_list)}")
+    
     if current_checksum == new_checksum do
       # Checksums match, no update needed
+      Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - Checksums match, skipping update")
       {:ok, thing}
     else
+      Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - Checksums differ, updating mechanics")
       # Update mechanics associations
       with {:ok, mechanic_ids} <- upsert_mechanics_bulk(mechanics_list),
            {:ok, updated_thing} <- update_thing_associations(thing, mechanic_ids, new_checksum) do
+        Logger.info("🔍 THING MECHANICS: Thing #{thing.id} - Successfully updated mechanics")
         {:ok, updated_thing}
+      else
+        error ->
+          Logger.error("🔍 THING MECHANICS: Thing #{thing.id} - Failed to update mechanics: #{inspect(error)}")
+          error
       end
     end
   end
@@ -369,6 +390,8 @@ defmodule Core.Schemas.Thing do
   defp upsert_mechanics_bulk(mechanics_list) do
     import Ecto.Query
     alias Core.Schemas.Mechanic
+    
+    Logger.info("🔍 MECHANIC BULK: Upserting #{length(mechanics_list)} mechanics: #{inspect(mechanics_list)}")
     
     # Prepare bulk insert data with generated UUIDs and slugs
     current_time = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -384,8 +407,10 @@ defmodule Core.Schemas.Thing do
         }
       end)
     
+    Logger.info("🔍 MECHANIC BULK: Prepared #{length(mechanics_params)} mechanic params")
+    
     # Bulk upsert mechanics using insert_all with conflict resolution
-    {_count, _mechanics} =
+    {insert_count, _mechanics} =
       Core.Repo.insert_all(
         Mechanic,
         mechanics_params,
@@ -395,16 +420,23 @@ defmodule Core.Schemas.Thing do
         returning: false
       )
     
+    Logger.info("🔍 MECHANIC BULK: Inserted #{insert_count} new mechanics")
+    
     # Get all mechanic IDs (including existing ones not returned by insert_all)
     mechanic_ids =
       from(m in Mechanic, where: m.name in ^mechanics_list, select: m.id)
       |> Core.Repo.all()
+    
+    Logger.info("🔍 MECHANIC BULK: Retrieved #{length(mechanic_ids)} mechanic IDs: #{inspect(mechanic_ids)}")
     
     {:ok, mechanic_ids}
   end
 
   defp update_thing_associations(thing, mechanic_ids, new_checksum) do
     alias Core.Schemas.ThingMechanic
+
+    Logger.info("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Updating associations with #{length(mechanic_ids)} mechanics")
+    Logger.info("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Mechanic IDs: #{inspect(mechanic_ids)}")
 
     # Build new ThingMechanic records
     current_time = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -418,6 +450,8 @@ defmodule Core.Schemas.Thing do
         }
       end)
 
+    Logger.info("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Prepared #{length(thing_mechanic_records)} association records")
+
     # Use Multi for atomic transaction
     result =
       Ecto.Multi.new()
@@ -430,10 +464,15 @@ defmodule Core.Schemas.Thing do
       |> Core.Repo.transaction()
 
     case result do
-      {:ok, %{update_checksum: updated_thing}} ->
+      {:ok, %{delete_existing: {deleted_count, _}, insert_new: {inserted_count, _}, update_checksum: updated_thing}} ->
+        Logger.info("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Transaction successful")
+        Logger.info("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Deleted #{deleted_count} old associations")
+        Logger.info("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Inserted #{inserted_count} new associations")
+        Logger.info("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Updated checksum to #{new_checksum}")
         {:ok, updated_thing}
 
-      {:error, _step, error, _changes} ->
+      {:error, step, error, _changes} ->
+        Logger.error("🔍 THING ASSOCIATIONS: Thing #{thing.id} - Transaction failed at step #{step}: #{inspect(error)}")
         {:error, error}
     end
   end

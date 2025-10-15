@@ -175,10 +175,16 @@ defmodule Core.BggGateway do
   end
 
   defp cast_things(things_data) do
+    Logger.info("🔍 BGG GATEWAY: Casting #{length(things_data)} things")
+    
     things =
       Enum.map(things_data, fn thing_params ->
         # Extract mechanics for later processing
         mechanics_list = Map.get(thing_params, :mechanics, [])
+        thing_id = Map.get(thing_params, :id, "unknown")
+        thing_name = Map.get(thing_params, :primary_name, "Unknown")
+
+        Logger.info("🔍 BGG GATEWAY: Thing #{thing_id} (#{thing_name}) has #{length(mechanics_list)} mechanics: #{inspect(mechanics_list)}")
 
         # Create Thing changeset without mechanics field
         thing_params_clean = Map.delete(thing_params, :mechanics)
@@ -188,9 +194,11 @@ defmodule Core.BggGateway do
             thing = Ecto.Changeset.apply_changes(changeset)
             # Add raw_mechanics as a virtual field for BggCacher processing
             thing_with_mechanics = Map.put(thing, :raw_mechanics, mechanics_list)
+            Logger.info("🔍 BGG GATEWAY: Thing #{thing_id} cast successfully with raw_mechanics: #{inspect(mechanics_list)}")
             {:ok, thing_with_mechanics}
 
           %Ecto.Changeset{valid?: false} ->
+            Logger.error("🔍 BGG GATEWAY: Thing #{thing_id} failed to cast: invalid_thing_data")
             {:error, :invalid_thing_data}
         end
       end)

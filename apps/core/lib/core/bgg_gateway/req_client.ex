@@ -44,12 +44,25 @@ defmodule Core.BggGateway.ReqClient do
   @doc "Makes a GET request to the specified URL."
   @impl Behaviour
   def get(url, params, headers) do
+    start_time = System.monotonic_time(:millisecond)
+    
     Logger.info(
-      "Making GET request with args: #{inspect(%{url: url, params: params, headers: headers})}"
+      "🌍 BGG HTTP: Making GET request to #{url} with params: #{inspect(params)}"
     )
 
     opts = [params: params, headers: headers] ++ req_options()
-    Req.get(url, opts)
+    
+    case Req.get(url, opts) do
+      {:ok, response} = result ->
+        duration = System.monotonic_time(:millisecond) - start_time
+        Logger.info("🌍 BGG HTTP: Request completed in #{duration}ms (status: #{response.status})")
+        result
+        
+      {:error, reason} = error ->
+        duration = System.monotonic_time(:millisecond) - start_time
+        Logger.error("🌍 BGG HTTP: Request failed after #{duration}ms: #{inspect(reason)}")
+        error
+    end
   end
 
   @doc "Makes a POST request to the specified URL."
@@ -91,6 +104,16 @@ defmodule Core.BggGateway.ReqClient do
 
   # Private helper to get configured request options
   defp req_options do
-    Application.get_env(:core, __MODULE__, retry: false)
+    # BGG API requires retry logic due to rate limiting and service issues
+    [
+      retry: :transient,
+      retry_delay: fn attempt -> 
+        delay = min(1000 * :math.pow(2, attempt - 1), 10_000)
+        Logger.info("🔄 BGG RETRY: Attempt #{attempt}, waiting #{trunc(delay)}ms before retry")
+        trunc(delay)
+      end,
+      max_retries: 3,
+      receive_timeout: 30_000
+    ]
   end
 end
