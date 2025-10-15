@@ -39,7 +39,7 @@ defmodule Core.Schemas.Mechanic do
     |> String.replace(~r/[\s\-]+/, "-")
     |> String.trim("-")
   end
-  
+
   @doc "Gets the most popular mechanics ordered by usage count"
   def most_popular(limit \\ 20) do
     from(m in __MODULE__,

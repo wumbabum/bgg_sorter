@@ -100,28 +100,33 @@ defmodule Core.Schemas.Thing do
   def upsert_thing(params) when is_map(params) do
     # Extract raw_mechanics if present (from BggGateway)
     raw_mechanics = Map.get(params, "raw_mechanics") || Map.get(params, :raw_mechanics)
-    
+
     # Process mechanics and generate checksum
     {mechanics_list, new_checksum} = process_raw_mechanics(raw_mechanics)
 
     # Ensure last_cached and schema_version are set with current values
     current_time = DateTime.utc_now()
+
     params_with_timestamp =
       params
       |> stringify_keys()
-      |> Map.delete("raw_mechanics")  # Remove virtual field
+      # Remove virtual field
+      |> Map.delete("raw_mechanics")
       |> Map.put("last_cached", current_time)
       |> Map.put("schema_version", 3)
-      # Don't set mechanics_checksum yet - we'll do that after processing mechanics
+
+    # Don't set mechanics_checksum yet - we'll do that after processing mechanics
 
     changeset = changeset(%__MODULE__{}, params_with_timestamp)
 
     case changeset.valid? do
       true ->
         with {:ok, upserted_thing} <- upsert_thing_record(changeset),
-             {:ok, updated_thing} <- update_thing_mechanics(upserted_thing, mechanics_list, new_checksum) do
+             {:ok, updated_thing} <-
+               update_thing_mechanics(upserted_thing, mechanics_list, new_checksum) do
           {:ok, updated_thing}
         end
+
       false ->
         {:error, changeset}
     end
@@ -353,7 +358,7 @@ defmodule Core.Schemas.Thing do
   defp update_thing_mechanics(thing, mechanics_list, new_checksum) do
     # Check if mechanics need updating by comparing checksums
     current_checksum = thing.mechanics_checksum
-    
+
     if current_checksum == new_checksum do
       # Checksums match, no update needed
       {:ok, thing}
@@ -364,7 +369,10 @@ defmodule Core.Schemas.Thing do
         {:ok, updated_thing}
       else
         error ->
-          Logger.error("THING MECHANICS: Thing #{thing.id} - Failed to update mechanics: #{inspect(error)}")
+          Logger.error(
+            "THING MECHANICS: Thing #{thing.id} - Failed to update mechanics: #{inspect(error)}"
+          )
+
           error
       end
     end
@@ -373,9 +381,10 @@ defmodule Core.Schemas.Thing do
   defp upsert_mechanics_bulk(mechanics_list) do
     import Ecto.Query
     alias Core.Schemas.Mechanic
-    
+
     # Prepare bulk insert data with generated UUIDs and slugs
     current_time = DateTime.utc_now() |> DateTime.truncate(:second)
+
     mechanics_params =
       mechanics_list
       |> Enum.map(fn name ->
@@ -387,7 +396,7 @@ defmodule Core.Schemas.Thing do
           updated_at: current_time
         }
       end)
-    
+
     # Bulk upsert mechanics using insert_all with conflict resolution
     {_count, _mechanics} =
       Core.Repo.insert_all(
@@ -398,12 +407,12 @@ defmodule Core.Schemas.Thing do
         # We'll query them separately for reliability
         returning: false
       )
-    
+
     # Get all mechanic IDs (including existing ones not returned by insert_all)
     mechanic_ids =
       from(m in Mechanic, where: m.name in ^mechanics_list, select: m.id)
       |> Core.Repo.all()
-    
+
     {:ok, mechanic_ids}
   end
 
@@ -412,6 +421,7 @@ defmodule Core.Schemas.Thing do
 
     # Build new ThingMechanic records
     current_time = DateTime.utc_now() |> DateTime.truncate(:second)
+
     thing_mechanic_records =
       Enum.map(mechanic_ids, fn mechanic_id ->
         %{
@@ -438,7 +448,10 @@ defmodule Core.Schemas.Thing do
         {:ok, updated_thing}
 
       {:error, step, error, _changes} ->
-        Logger.error("THING ASSOCIATIONS: Thing #{thing.id} - Transaction failed at step #{step}: #{inspect(error)}")
+        Logger.error(
+          "THING ASSOCIATIONS: Thing #{thing.id} - Transaction failed at step #{step}: #{inspect(error)}"
+        )
+
         {:error, error}
     end
   end

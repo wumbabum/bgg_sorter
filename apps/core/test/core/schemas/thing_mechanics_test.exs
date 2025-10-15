@@ -14,7 +14,7 @@ defmodule Core.Schemas.ThingMechanicsTest do
         "yearpublished" => "2018",
         "raw_mechanics" => [
           "Chaining",
-          "End Game Bonuses", 
+          "End Game Bonuses",
           "Hand Management",
           "Income",
           "Tile Placement"
@@ -43,16 +43,25 @@ defmodule Core.Schemas.ThingMechanicsTest do
       # Verify mechanic names and slugs
       all_mechanics = Repo.all(Mechanic)
       mechanic_names = Enum.map(all_mechanics, & &1.name) |> Enum.sort()
-      expected_names = ["Chaining", "End Game Bonuses", "Hand Management", "Income", "Tile Placement"]
+
+      expected_names = [
+        "Chaining",
+        "End Game Bonuses",
+        "Hand Management",
+        "Income",
+        "Tile Placement"
+      ]
+
       assert mechanic_names == expected_names
 
       # Verify associations work
       thing_with_mechanics = Repo.get(Thing, "224517") |> Repo.preload(:mechanics)
-      associated_mechanic_names = 
+
+      associated_mechanic_names =
         thing_with_mechanics.mechanics
         |> Enum.map(& &1.name)
         |> Enum.sort()
-      
+
       assert associated_mechanic_names == expected_names
     end
 
@@ -104,7 +113,7 @@ defmodule Core.Schemas.ThingMechanicsTest do
       thing2_params = %{
         "id" => "222222",
         "type" => "boardgame",
-        "primary_name" => "Game Two", 
+        "primary_name" => "Game Two",
         "raw_mechanics" => ["Hand Management", "Worker Placement", "Engine Building"]
       }
 
@@ -114,11 +123,13 @@ defmodule Core.Schemas.ThingMechanicsTest do
 
       # Should have unique mechanics (no duplicates)
       mechanics_count = Repo.aggregate(Mechanic, :count, :id)
-      assert mechanics_count == 4  # Hand Management, Tile Placement, Worker Placement, Engine Building
+      # Hand Management, Tile Placement, Worker Placement, Engine Building
+      assert mechanics_count == 4
 
       # Should have correct associations count  
       thing_mechanics_count = Repo.aggregate(ThingMechanic, :count, :id)
-      assert thing_mechanics_count == 5  # 2 for thing1 + 3 for thing2
+      # 2 for thing1 + 3 for thing2
+      assert thing_mechanics_count == 5
 
       # Verify "Hand Management" mechanic is shared
       hand_management = Repo.get_by(Mechanic, name: "Hand Management")
@@ -150,7 +161,7 @@ defmodule Core.Schemas.ThingMechanicsTest do
       # Update with different mechanics
       updated_params = %{
         "id" => "333333",
-        "type" => "boardgame", 
+        "type" => "boardgame",
         "primary_name" => "Evolving Game",
         "raw_mechanics" => ["Worker Placement", "Engine Building", "Deck Building"]
       }
@@ -169,18 +180,20 @@ defmodule Core.Schemas.ThingMechanicsTest do
       assert mechanics_count == 5
 
       # Thing should only be associated with new mechanics (3)
-      thing_mechanics_count = 
+      thing_mechanics_count =
         from(tm in ThingMechanic, where: tm.thing_id == "333333")
         |> Repo.aggregate(:count, :id)
+
       assert thing_mechanics_count == 3
 
       # Verify correct associations
       thing_with_mechanics = Repo.get(Thing, "333333") |> Repo.preload(:mechanics)
-      associated_names = 
+
+      associated_names =
         thing_with_mechanics.mechanics
         |> Enum.map(& &1.name)
         |> Enum.sort()
-      
+
       expected_names = ["Deck Building", "Engine Building", "Worker Placement"]
       assert associated_names == expected_names
     end
@@ -198,14 +211,16 @@ defmodule Core.Schemas.ThingMechanicsTest do
       initial_checksum = initial_thing.mechanics_checksum
       initial_updated_at = initial_thing.updated_at
 
-      :timer.sleep(100)  # Ensure timestamp difference
+      # Ensure timestamp difference
+      :timer.sleep(100)
 
       # Upsert again with same mechanics (different order to test sorting)
       same_params = %{
         "id" => "444444",
         "type" => "boardgame",
         "primary_name" => "Unchanged Game",
-        "raw_mechanics" => ["Tile Placement", "Hand Management"]  # Different order
+        # Different order
+        "raw_mechanics" => ["Tile Placement", "Hand Management"]
       }
 
       assert {:ok, updated_thing} = Thing.upsert_thing(same_params)
@@ -218,9 +233,10 @@ defmodule Core.Schemas.ThingMechanicsTest do
       assert DateTime.compare(updated_thing.last_cached, initial_thing.last_cached) in [:gt, :eq]
 
       # Associations count should remain the same
-      thing_mechanics_count = 
+      thing_mechanics_count =
         from(tm in ThingMechanic, where: tm.thing_id == "444444")
         |> Repo.aggregate(:count, :id)
+
       assert thing_mechanics_count == 2
     end
 
@@ -230,10 +246,14 @@ defmodule Core.Schemas.ThingMechanicsTest do
         "type" => "boardgame",
         "primary_name" => "Special Characters Game",
         "raw_mechanics" => [
-          "  Hand Management  ",      # Leading/trailing spaces
-          "Multi-Use Cards",          # Hyphens
-          "Co-operative Play",        # Hyphens
-          "Action/Movement Programming" # Forward slash
+          # Leading/trailing spaces
+          "  Hand Management  ",
+          # Hyphens
+          "Multi-Use Cards",
+          # Hyphens
+          "Co-operative Play",
+          # Forward slash
+          "Action/Movement Programming"
         ]
       }
 
@@ -242,13 +262,15 @@ defmodule Core.Schemas.ThingMechanicsTest do
       # Mechanics should be created with normalized names
       all_mechanics = Repo.all(Mechanic)
       mechanic_names = Enum.map(all_mechanics, & &1.name) |> Enum.sort()
-      
+
       expected_names = [
         "Action/Movement Programming",
-        "Co-operative Play", 
-        "Hand Management",  # Spaces should be trimmed
+        "Co-operative Play",
+        # Spaces should be trimmed
+        "Hand Management",
         "Multi-Use Cards"
       ]
+
       assert mechanic_names == expected_names
 
       # Verify slugs are generated correctly

@@ -5,9 +5,9 @@ defmodule Web.Components.MechanicsTagComponent do
 
   @doc """
   Renders a mechanics tag with optional highlighting and click behavior.
-  
+
   ## Examples
-  
+
       <MechanicsTagComponent.mechanic_tag mechanic={mechanic} highlighted={true} clickable={true} />
       <MechanicsTagComponent.mechanic_tag mechanic={mechanic} size={:small} />
   """
@@ -31,16 +31,16 @@ defmodule Web.Components.MechanicsTagComponent do
 
   defp build_tag_classes(assigns) do
     base_class = "mechanic-tag"
-    
+
     classes = [
       base_class,
       assigns.highlighted && "#{base_class}--highlighted",
       assigns.size == :small && "#{base_class}--small",
       assigns.clickable && "#{base_class}--clickable"
     ]
-    
+
     classes
-    |> Enum.filter(&(&1))
+    |> Enum.filter(& &1)
     |> Enum.join(" ")
   end
 end

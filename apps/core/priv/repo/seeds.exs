@@ -92,7 +92,7 @@ Logger.info("Seeding #{length(mechanics_to_seed)} popular mechanics...")
 
 current_time = DateTime.utc_now() |> DateTime.truncate(:second)
 
-mechanics_params = 
+mechanics_params =
   mechanics_to_seed
   |> Enum.map(fn name ->
     %{
@@ -105,13 +105,17 @@ mechanics_params =
   end)
 
 # Use insert_all with on_conflict to avoid duplicates
-{inserted_count, _} = Repo.insert_all(
-  Mechanic,
-  mechanics_params,
-  on_conflict: :nothing,
-  conflict_target: :name,
-  returning: false
+{inserted_count, _} =
+  Repo.insert_all(
+    Mechanic,
+    mechanics_params,
+    on_conflict: :nothing,
+    conflict_target: :name,
+    returning: false
+  )
+
+Logger.info(
+  "Successfully seeded #{inserted_count} mechanics (#{length(mechanics_to_seed) - inserted_count} already existed)"
 )
 
-Logger.info("Successfully seeded #{inserted_count} mechanics (#{length(mechanics_to_seed) - inserted_count} already existed)")
 Logger.info("Total mechanics in database: #{Repo.aggregate(Mechanic, :count)}")

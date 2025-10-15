@@ -100,7 +100,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               size="35"
             />
             
-            <!-- Mechanics Filter -->
+    <!-- Mechanics Filter -->
             <MechanicsSearchComponent.mechanics_filter_input
               selected_mechanics={Map.get(assigns, :selected_mechanics, MapSet.new())}
               all_mechanics_expanded={Map.get(assigns, :all_mechanics_expanded, false)}

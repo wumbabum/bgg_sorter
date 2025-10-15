@@ -11,7 +11,7 @@ defmodule Core.BggCacher do
 
   @cache_ttl_weeks 1
   @rate_limit_delay_ms 1000
-@current_schema_version 3
+  @current_schema_version 3
 
   @doc """
   Loads things from cache, refreshing stale entries via BGG API.
@@ -209,11 +209,16 @@ defmodule Core.BggCacher do
     case parse_integer(value) do
       player_count when is_integer(player_count) ->
         from(t in query,
+          # Only include games with numeric min/max players within the target range
           where:
-            # Only include games with numeric min/max players within the target range
             fragment(
               "? ~ '^[0-9]+$' AND ? ~ '^[0-9]+$' AND CAST(? AS INTEGER) >= CAST(? AS INTEGER) AND CAST(? AS INTEGER) <= CAST(? AS INTEGER)",
-              t.minplayers, t.maxplayers, ^player_count, t.minplayers, ^player_count, t.maxplayers
+              t.minplayers,
+              t.maxplayers,
+              ^player_count,
+              t.minplayers,
+              ^player_count,
+              t.maxplayers
             )
         )
 
@@ -226,11 +231,16 @@ defmodule Core.BggCacher do
     case parse_integer(value) do
       target_time when is_integer(target_time) ->
         from(t in query,
+          # Only include games with numeric min/max playtime within the target range
           where:
-            # Only include games with numeric min/max playtime within the target range
             fragment(
               "? ~ '^[0-9]+$' AND ? ~ '^[0-9]+$' AND CAST(? AS INTEGER) >= CAST(? AS INTEGER) AND CAST(? AS INTEGER) <= CAST(? AS INTEGER)",
-              t.minplaytime, t.maxplaytime, ^target_time, t.minplaytime, ^target_time, t.maxplaytime
+              t.minplaytime,
+              t.maxplaytime,
+              ^target_time,
+              t.minplaytime,
+              ^target_time,
+              t.maxplaytime
             )
         )
 
@@ -243,8 +253,8 @@ defmodule Core.BggCacher do
     case parse_integer(value) do
       max_rank when is_integer(max_rank) ->
         from(t in query,
+          # Only include games with numeric ranks that are within the specified range
           where:
-            # Only include games with numeric ranks that are within the specified range
             fragment(
               "? ~ '^[0-9]+$' AND CAST(? AS INTEGER) > 0 AND CAST(? AS INTEGER) <= ?",
               t.rank,
@@ -263,9 +273,14 @@ defmodule Core.BggCacher do
     case parse_float(value) do
       min_rating when is_float(min_rating) ->
         from(t in query,
+          # Only include games with numeric average ratings
           where:
-            # Only include games with numeric average ratings
-            fragment("? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) >= ?", t.average, t.average, ^min_rating)
+            fragment(
+              "? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) >= ?",
+              t.average,
+              t.average,
+              ^min_rating
+            )
         )
 
       _ ->
@@ -277,9 +292,14 @@ defmodule Core.BggCacher do
     case parse_float(value) do
       min_weight when is_float(min_weight) ->
         from(t in query,
+          # Only include games with numeric average weights
           where:
-            # Only include games with numeric average weights
-            fragment("? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) >= ?", t.averageweight, t.averageweight, ^min_weight)
+            fragment(
+              "? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) >= ?",
+              t.averageweight,
+              t.averageweight,
+              ^min_weight
+            )
         )
 
       _ ->
@@ -291,9 +311,14 @@ defmodule Core.BggCacher do
     case parse_float(value) do
       max_weight when is_float(max_weight) ->
         from(t in query,
+          # Only include games with numeric average weights
           where:
-            # Only include games with numeric average weights
-            fragment("? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) <= ?", t.averageweight, t.averageweight, ^max_weight)
+            fragment(
+              "? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) <= ?",
+              t.averageweight,
+              t.averageweight,
+              ^max_weight
+            )
         )
 
       _ ->

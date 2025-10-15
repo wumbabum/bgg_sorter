@@ -48,16 +48,18 @@ defmodule Core.Release do
     load_app()
 
     for repo <- repos() do
-      {:ok, _, _} = Ecto.Migrator.with_repo(repo, fn _repo ->
-        # Run the seeds file
-        seeds_file = Application.app_dir(:core, "priv/repo/seeds.exs")
-        if File.exists?(seeds_file) do
-          IO.puts("Running seeds from #{seeds_file}")
-          Code.eval_file(seeds_file)
-        else
-          IO.puts("No seeds file found at #{seeds_file}")
-        end
-      end)
+      {:ok, _, _} =
+        Ecto.Migrator.with_repo(repo, fn _repo ->
+          # Run the seeds file
+          seeds_file = Application.app_dir(:core, "priv/repo/seeds.exs")
+
+          if File.exists?(seeds_file) do
+            IO.puts("Running seeds from #{seeds_file}")
+            Code.eval_file(seeds_file)
+          else
+            IO.puts("No seeds file found at #{seeds_file}")
+          end
+        end)
     end
   end
 

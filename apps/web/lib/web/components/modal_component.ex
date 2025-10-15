@@ -125,10 +125,10 @@ defmodule Web.Components.ModalComponent do
           <h4>Mechanics</h4>
           <div class="mechanics-tags">
             <%= for mechanic <- @thing_details.mechanics do %>
-              <MechanicsTagComponent.mechanic_tag 
-                mechanic={mechanic} 
-                highlighted={mechanic_selected?(assigns, mechanic.id)} 
-                clickable={true} 
+              <MechanicsTagComponent.mechanic_tag
+                mechanic={mechanic}
+                highlighted={mechanic_selected?(assigns, mechanic.id)}
+                clickable={true}
               />
             <% end %>
           </div>
@@ -215,13 +215,15 @@ defmodule Web.Components.ModalComponent do
     cond do
       assigns[:thing_details] && assigns.thing_details.primary_name ->
         assigns.thing_details.primary_name
+
       assigns[:selected_thing] && assigns.selected_thing.primary_name ->
         assigns.selected_thing.primary_name
+
       true ->
         "Board Game Details"
     end
   end
-  
+
   # Check if a mechanic is selected
   defp mechanic_selected?(assigns, mechanic_id) do
     selected_mechanics = Map.get(assigns, :selected_mechanics, MapSet.new())

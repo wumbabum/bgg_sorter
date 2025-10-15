@@ -169,7 +169,6 @@ defmodule Web.CollectionLive do
     current_modal_thing_id = socket.assigns.modal_thing_id
     current_selected_mechanics = socket.assigns.selected_mechanics
 
-
     cond do
       # Username changed, reload collection
       username != socket.assigns.username ->
@@ -243,6 +242,7 @@ defmodule Web.CollectionLive do
       # Selected mechanics changed - apply client-side filtering
       selected_mechanics != current_selected_mechanics ->
         Logger.info("🔍 MECHANICS DEBUG: Mechanics changed, applying client-side filtering")
+
         socket =
           socket
           |> assign(:selected_mechanics, selected_mechanics)
@@ -410,7 +410,6 @@ defmodule Web.CollectionLive do
 
         case Core.BggCacher.load_things_cache([minimal_thing]) do
           {:ok, [detailed_thing]} ->
-
             socket =
               socket
               |> assign(:modal_loading, false)
@@ -451,7 +450,9 @@ defmodule Web.CollectionLive do
 
   @impl true
   def handle_info({:load_modal_details, thing}, socket) do
-    Logger.info("Loading modal details for thing: #{inspect(thing.primary_name)} (ID: #{thing.id})")
+    Logger.info(
+      "Loading modal details for thing: #{inspect(thing.primary_name)} (ID: #{thing.id})"
+    )
 
     case Core.BggCacher.load_things_cache([thing]) do
       {:ok, [detailed_thing]} ->
@@ -787,7 +788,6 @@ defmodule Web.CollectionLive do
     {:noreply, socket}
   end
 
-
   @impl true
   def handle_event("search_mechanics", %{"value" => query}, socket) do
     Logger.info("Searching mechanics with query: #{inspect(query)}")
@@ -806,7 +806,6 @@ defmodule Web.CollectionLive do
     current_expanded = Map.get(socket.assigns, :all_mechanics_expanded, false)
     new_expanded = !current_expanded
 
-
     socket = assign(socket, :all_mechanics_expanded, new_expanded)
 
     # Load popular mechanics if expanding and not already loaded
@@ -823,7 +822,7 @@ defmodule Web.CollectionLive do
           # If no popular mechanics found, try loading seeded mechanics alphabetically
           final_mechanics =
             if Enum.empty?(popular_mechanics) do
-              Core.Repo.all(from m in Core.Schemas.Mechanic, limit: 50, order_by: m.name)
+              Core.Repo.all(from(m in Core.Schemas.Mechanic, limit: 50, order_by: m.name))
             else
               popular_mechanics
             end
@@ -837,10 +836,11 @@ defmodule Web.CollectionLive do
             # Try to load any mechanics as fallback
             fallback_mechanics =
               try do
-                Core.Repo.all(from m in Core.Schemas.Mechanic, limit: 50, order_by: m.name)
+                Core.Repo.all(from(m in Core.Schemas.Mechanic, limit: 50, order_by: m.name))
               rescue
                 _ -> []
               end
+
             socket
             |> assign(:popular_mechanics, fallback_mechanics)
             |> assign(:mechanics_loading, false)
@@ -868,7 +868,8 @@ defmodule Web.CollectionLive do
       socket
       |> assign(:selected_mechanics, new_selected)
       |> apply_mechanics_filtering()
-      |> assign(:current_page, 1)  # Reset to page 1 when filtering changes
+      # Reset to page 1 when filtering changes
+      |> assign(:current_page, 1)
 
     # Update URL to include selected mechanics - build new URL with mechanics parameter
     case socket.assigns.username do
@@ -882,12 +883,18 @@ defmodule Web.CollectionLive do
         sort_direction = socket.assigns.sort_direction
         modal_thing_id = socket.assigns.modal_thing_id
 
-        url = build_collection_url_with_mechanics(
-          username, filters, sort_field, sort_direction, new_selected,
-          page: 1,  # Always reset to page 1 when filtering
-          advanced_search: advanced_search,
-          modal_thing_id: modal_thing_id
-        )
+        url =
+          build_collection_url_with_mechanics(
+            username,
+            filters,
+            sort_field,
+            sort_direction,
+            new_selected,
+            # Always reset to page 1 when filtering
+            page: 1,
+            advanced_search: advanced_search,
+            modal_thing_id: modal_thing_id
+          )
 
         {:noreply, push_patch(socket, to: url)}
     end
@@ -1051,30 +1058,38 @@ defmodule Web.CollectionLive do
   # Try to apply filters using the cached database data first, fallback to BGG API if needed
   defp reapply_filters_to_collection(socket, new_filters) do
     original_items = socket.assigns.original_collection_items
-    
+
     if Enum.empty?(original_items) do
       # No original data available - need to reload from BGG API
       {:reload_needed, socket}
     else
       # We have original data - use BggCacher with database-level filtering and sorting
       Logger.info("Applying filters using database cache with #{length(original_items)} items")
-      
+
       # Extract client-only filters and convert mechanics to proper format
       client_filters = extract_client_only_filters(new_filters)
-      client_filters_with_mechanics = Map.put(client_filters, :selected_mechanics, MapSet.to_list(socket.assigns.selected_mechanics))
-      
+
+      client_filters_with_mechanics =
+        Map.put(
+          client_filters,
+          :selected_mechanics,
+          MapSet.to_list(socket.assigns.selected_mechanics)
+        )
+
       # Use BggCacher to apply database-level filtering and sorting
       case Core.BggCacher.load_things_cache(
-        original_items,
-        client_filters_with_mechanics,
-        socket.assigns.sort_by,
-        socket.assigns.sort_direction
-      ) do
+             original_items,
+             client_filters_with_mechanics,
+             socket.assigns.sort_by,
+             socket.assigns.sort_direction
+           ) do
         {:ok, filtered_items} ->
           # Update pagination
           total_items = length(filtered_items)
-          current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
-          
+
+          current_page_items =
+            get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
+
           updated_socket =
             socket
             |> assign(:filters, new_filters)
@@ -1082,9 +1097,9 @@ defmodule Web.CollectionLive do
             |> assign(:collection_items, current_page_items)
             |> assign(:total_items, total_items)
             |> assign(:collection_loading, false)
-          
+
           {:ok, updated_socket}
-          
+
         {:error, reason} ->
           Logger.warning("Database filtering failed: #{inspect(reason)}, falling back to reload")
           {:reload_needed, socket}
@@ -1104,7 +1119,8 @@ defmodule Web.CollectionLive do
   end
 
   # Put mechanics filters from comma-separated string or MapSet
-  defp put_mechanics_filters(filters, mechanics_str) when is_binary(mechanics_str) and mechanics_str != "" do
+  defp put_mechanics_filters(filters, mechanics_str)
+       when is_binary(mechanics_str) and mechanics_str != "" do
     mechanic_ids =
       mechanics_str
       |> String.split(",")
@@ -1121,6 +1137,7 @@ defmodule Web.CollectionLive do
   # Handle MapSet from selected_mechanics state
   defp put_mechanics_filters(filters, %MapSet{} = mechanics_set) do
     mechanic_ids = MapSet.to_list(mechanics_set)
+
     if Enum.empty?(mechanic_ids) do
       filters
     else
@@ -1133,13 +1150,16 @@ defmodule Web.CollectionLive do
   # Search mechanics by name query
   defp search_mechanics_by_query(query) when is_binary(query) and query != "" do
     trimmed_query = String.trim(query)
+
     if String.length(trimmed_query) >= 2 do
       like_pattern = "%" <> trimmed_query <> "%"
+
       Core.Repo.all(
-        from m in Core.Schemas.Mechanic,
+        from(m in Core.Schemas.Mechanic,
           where: ilike(m.name, ^like_pattern),
           order_by: m.name,
           limit: 15
+        )
       )
     else
       []
@@ -1153,12 +1173,14 @@ defmodule Web.CollectionLive do
     case Map.get(params, "mechanics") do
       mechanics_str when is_binary(mechanics_str) and mechanics_str != "" ->
         Logger.info("Parsing mechanics from URL: #{inspect(mechanics_str)}")
+
         selected =
           mechanics_str
           |> String.split(",")
           |> Enum.map(&String.trim/1)
           |> Enum.reject(&(&1 == ""))
           |> MapSet.new()
+
         Logger.info("Parsed selected mechanics: #{inspect(MapSet.to_list(selected))}")
         selected
 
@@ -1170,6 +1192,7 @@ defmodule Web.CollectionLive do
   # Encode selected mechanics for URL
   defp encode_selected_mechanics(%MapSet{} = selected_mechanics) do
     mechanics_list = MapSet.to_list(selected_mechanics)
+
     if Enum.empty?(mechanics_list) do
       ""
     else
@@ -1181,7 +1204,6 @@ defmodule Web.CollectionLive do
   defp apply_mechanics_filtering(socket) do
     original_items = socket.assigns.original_collection_items
     selected_mechanics = socket.assigns.selected_mechanics
-
 
     filtered_items =
       if MapSet.size(selected_mechanics) == 0 do
@@ -1204,7 +1226,9 @@ defmodule Web.CollectionLive do
 
     # Update the filtered collection and pagination
     total_items = length(filtered_items)
-    current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
+
+    current_page_items =
+      get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
 
     socket
     |> assign(:all_collection_items, filtered_items)
@@ -1294,7 +1318,13 @@ defmodule Web.CollectionLive do
   end
 
   # Helper function to build URL with filter, sort, and page query parameters
-  defp build_collection_url_with_sort_and_page(username, filters, sort_field, sort_direction, opts) do
+  defp build_collection_url_with_sort_and_page(
+         username,
+         filters,
+         sort_field,
+         sort_direction,
+         opts
+       ) do
     base_path = "/collection/#{username}"
 
     # Build query parameters
@@ -1386,7 +1416,14 @@ defmodule Web.CollectionLive do
   end
 
   # Helper function to build URL with filter, sort, and mechanics query parameters
-  defp build_collection_url_with_mechanics(username, filters, sort_field, sort_direction, selected_mechanics, opts) do
+  defp build_collection_url_with_mechanics(
+         username,
+         filters,
+         sort_field,
+         sort_direction,
+         selected_mechanics,
+         opts
+       ) do
     base_path = "/collection/#{username}"
 
     # Build query parameters

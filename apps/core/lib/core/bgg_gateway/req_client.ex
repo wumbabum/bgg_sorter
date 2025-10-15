@@ -49,11 +49,11 @@ defmodule Core.BggGateway.ReqClient do
     )
 
     opts = [params: params, headers: headers] ++ req_options()
-    
+
     case Req.get(url, opts) do
       {:ok, response} = result ->
         result
-        
+
       {:error, reason} = error ->
         Logger.error("BGG HTTP: Request failed: #{inspect(reason)}")
         error
@@ -102,7 +102,7 @@ defmodule Core.BggGateway.ReqClient do
     # BGG API requires retry logic due to rate limiting and service issues
     [
       retry: :transient,
-      retry_delay: fn attempt -> 
+      retry_delay: fn attempt ->
         delay = min(1000 * :math.pow(2, attempt - 1), 10_000)
         trunc(delay)
       end,
