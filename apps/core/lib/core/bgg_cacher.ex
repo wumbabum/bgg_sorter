@@ -28,11 +28,15 @@ defmodule Core.BggCacher do
       when is_list(things) do
     # Extract Thing IDs from input list
     thing_ids = Enum.map(things, & &1.id)
+    Logger.info("🔍 CACHER ENTRY: Loading #{length(thing_ids)} things from cache")
+    Logger.info("🔍 CACHER ENTRY: Thing IDs: #{inspect(thing_ids)}")
+    Logger.info("🔍 CACHER ENTRY: Filters: #{inspect(filters)}")
 
     with {:ok, stale_ids} <- get_stale_thing_ids(thing_ids),
          {:ok, _updated_things} <- update_stale_things(stale_ids),
          {:ok, cached_things} <-
            get_all_cached_things(thing_ids, filters, sort_field, sort_direction) do
+      Logger.info("🔍 CACHER ENTRY: Successfully loaded #{length(cached_things)} things")
       {:ok, cached_things}
     end
   end
@@ -148,6 +152,14 @@ defmodule Core.BggCacher do
         |> with_filters(filters)
         |> with_sorting(sort_field, sort_direction)
         |> Core.Repo.all()
+      
+      # Debug mechanics loading
+      Enum.each(cached_things, fn thing ->
+        Logger.info("🔍 CACHER DEBUG: Thing #{thing.id} (#{thing.primary_name}) has #{length(thing.mechanics || [])} mechanics")
+        if thing.mechanics && length(thing.mechanics) > 0 do
+          Logger.info("🔍 CACHER DEBUG: First mechanic: #{Enum.at(thing.mechanics, 0).name}")
+        end
+      end)
 
       {:ok, cached_things}
     rescue

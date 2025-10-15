@@ -441,3 +441,75 @@ This comprehensive mechanics UI system has been fully implemented with a perform
 - **LiveView integration** with proper event handling and state management
 
 The system delivers a premium user experience with instant responsiveness while maintaining the robust relational database architecture for data integrity and comprehensive mechanics coverage.
+
+---
+
+## 🐛 Production Issue: Modal Mechanics Not Loading
+
+**Status**: 🔍 **INVESTIGATING**
+
+### Problem Description
+**Modal components in production are not displaying mechanics for games**, even though the games exist in the database. Production logs show:
+
+```
+2025-10-15T04:55:06.750 app[148e7207b9d098] sjc [info] Loading modal details for thing: "7 Wonders" (ID: 68448)
+2025-10-15T04:55:07.213 app[148e7207b9d098] sjc [info] Loaded detailed thing: "7 Wonders"
+2025-10-15T04:55:07.213 app[148e7207b9d098] sjc [info] Thing mechanics: []
+```
+
+**Expected**: 7 Wonders should have ~14 mechanics (confirmed working locally)
+**Actual**: Production shows 0 mechanics for the same game
+
+### Root Cause Analysis
+
+**BggCacher Investigation:**
+- ✅ BggCacher **does** preload mechanics: `preload: [:mechanics]` (line 146)
+- ✅ Modal loading calls BggCacher correctly
+- ❌ Production database missing mechanics associations for existing games
+
+**Possible Causes:**
+1. **Database State Mismatch**: Production Things exist but lack mechanics associations
+2. **Migration Issue**: thing_mechanics table not properly populated in production
+3. **Seeding Gap**: Games loaded before mechanics seeding, associations never created
+4. **Cache Staleness**: Things cached before mechanics system, need refresh
+
+### Investigation Plan
+
+**Phase 1: Database Diagnostics** 🔍
+- [ ] Add debug logging to BggCacher to show:
+  - Thing exists in database
+  - Mechanics associations count
+  - Sample mechanic names if present
+- [ ] Add production database queries to verify:
+  - Things table has records
+  - thing_mechanics table has associations
+  - mechanics table properly seeded
+
+**Phase 2: Data Consistency Check** 🛠️
+- [ ] Compare local vs production database schema
+- [ ] Verify BGG API data processing creates associations
+- [ ] Check if Thing.upsert_thing mechanics processing works in production
+
+**Phase 3: Resolution Strategy** ⚡
+- [ ] **Option A**: Force re-cache stale Things to rebuild associations
+- [ ] **Option B**: Run production seed command to backfill missing data
+- [ ] **Option C**: Add mechanics_checksum-based cache invalidation
+
+### Debug Implementation
+
+**Added Debugging:**
+- 🔍 BggCacher logging for mechanics loading
+- 📊 Production database state verification
+- 🎯 Thing-specific mechanics association tracking
+
+**Expected Debug Output:**
+```
+🔍 CACHER DEBUG: Thing 68448 (7 Wonders) has X mechanics
+🔍 CACHER DEBUG: First mechanic: [mechanic_name]
+```
+
+### Success Criteria
+- ✅ Modal components show mechanics for all games in production
+- ✅ Mechanics filtering works with production data
+- ✅ No performance regression from additional queries
+- ✅ Consistent behavior between local and production environments

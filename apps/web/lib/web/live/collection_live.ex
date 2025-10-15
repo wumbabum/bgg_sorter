@@ -405,20 +405,26 @@ defmodule Web.CollectionLive do
 
   @impl true
   def handle_info({:load_modal_details_by_id, thing_id}, socket) do
-    Logger.info("Loading modal details for thing_id: #{inspect(thing_id)}")
+    Logger.info("🔍 MODAL DEBUG: Loading modal details for thing_id: #{inspect(thing_id)}")
     
     # Try to parse the thing_id
     case Integer.parse(to_string(thing_id)) do
       {parsed_id, _} ->
-        Logger.info("Parsed thing_id as: #{parsed_id}")
+        Logger.info("🔍 MODAL DEBUG: Parsed thing_id as: #{parsed_id}")
         # Create a minimal thing struct to query with
         minimal_thing = %{id: to_string(parsed_id)}
+        Logger.info("🔍 MODAL DEBUG: Created minimal_thing: #{inspect(minimal_thing)}")
         
         case Core.BggCacher.load_things_cache([minimal_thing]) do
           {:ok, [detailed_thing]} ->
-            Logger.info("Loaded detailed thing: #{inspect(detailed_thing.primary_name)}")
-            Logger.info("Thing mechanics: #{inspect(detailed_thing.mechanics)}")
-            Logger.info("Mechanics count: #{length(detailed_thing.mechanics || [])}")
+            Logger.info("🔍 MODAL DEBUG: Loaded detailed thing: #{inspect(detailed_thing.primary_name)}")
+            Logger.info("🔍 MODAL DEBUG: Thing mechanics raw: #{inspect(detailed_thing.mechanics)}")
+            Logger.info("🔍 MODAL DEBUG: Mechanics count: #{length(detailed_thing.mechanics || [])}")
+            Logger.info("🔍 MODAL DEBUG: Mechanics association loaded? #{inspect(!match?(%Ecto.Association.NotLoaded{}, detailed_thing.mechanics))}")
+            if detailed_thing.mechanics && length(detailed_thing.mechanics) > 0 do
+              Logger.info("🔍 MODAL DEBUG: First mechanic: #{inspect(Enum.at(detailed_thing.mechanics, 0).name)}")
+              Logger.info("🔍 MODAL DEBUG: All mechanic names: #{inspect(Enum.map(detailed_thing.mechanics, & &1.name))}")
+            end
             
             socket =
               socket
