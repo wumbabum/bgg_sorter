@@ -1048,11 +1048,48 @@ defmodule Web.CollectionLive do
     Map.take(filters, client_only_keys)
   end
 
-  # Always reload with database-level filtering and sorting
-  defp reapply_filters_to_collection(socket, _new_filters) do
-    # Since we've moved to database-level operations, always reload
-    # This ensures filters and sorting are applied consistently at the database level
-    {:reload_needed, socket}
+  # Try to apply filters using the cached database data first, fallback to BGG API if needed
+  defp reapply_filters_to_collection(socket, new_filters) do
+    original_items = socket.assigns.original_collection_items
+    
+    if Enum.empty?(original_items) do
+      # No original data available - need to reload from BGG API
+      {:reload_needed, socket}
+    else
+      # We have original data - use BggCacher with database-level filtering and sorting
+      Logger.info("Applying filters using database cache with #{length(original_items)} items")
+      
+      # Extract client-only filters and convert mechanics to proper format
+      client_filters = extract_client_only_filters(new_filters)
+      client_filters_with_mechanics = Map.put(client_filters, :selected_mechanics, MapSet.to_list(socket.assigns.selected_mechanics))
+      
+      # Use BggCacher to apply database-level filtering and sorting
+      case Core.BggCacher.load_things_cache(
+        original_items,
+        client_filters_with_mechanics,
+        socket.assigns.sort_by,
+        socket.assigns.sort_direction
+      ) do
+        {:ok, filtered_items} ->
+          # Update pagination
+          total_items = length(filtered_items)
+          current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
+          
+          updated_socket =
+            socket
+            |> assign(:filters, new_filters)
+            |> assign(:all_collection_items, filtered_items)
+            |> assign(:collection_items, current_page_items)
+            |> assign(:total_items, total_items)
+            |> assign(:collection_loading, false)
+          
+          {:ok, updated_socket}
+          
+        {:error, reason} ->
+          Logger.warning("Database filtering failed: #{inspect(reason)}, falling back to reload")
+          {:reload_needed, socket}
+      end
+    end
   end
 
   # Add non-empty values to filter map

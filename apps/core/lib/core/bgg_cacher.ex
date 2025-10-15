@@ -210,8 +210,11 @@ defmodule Core.BggCacher do
       player_count when is_integer(player_count) ->
         from(t in query,
           where:
-            fragment("CAST(? AS INTEGER) >= CAST(? AS INTEGER)", ^player_count, t.minplayers) and
-              fragment("CAST(? AS INTEGER) <= CAST(? AS INTEGER)", ^player_count, t.maxplayers)
+            # Only include games with numeric min/max players within the target range
+            fragment(
+              "? ~ '^[0-9]+$' AND ? ~ '^[0-9]+$' AND CAST(? AS INTEGER) >= CAST(? AS INTEGER) AND CAST(? AS INTEGER) <= CAST(? AS INTEGER)",
+              t.minplayers, t.maxplayers, ^player_count, t.minplayers, ^player_count, t.maxplayers
+            )
         )
 
       _ ->
@@ -224,8 +227,11 @@ defmodule Core.BggCacher do
       target_time when is_integer(target_time) ->
         from(t in query,
           where:
-            fragment("CAST(? AS INTEGER) >= CAST(? AS INTEGER)", ^target_time, t.minplaytime) and
-              fragment("CAST(? AS INTEGER) <= CAST(? AS INTEGER)", ^target_time, t.maxplaytime)
+            # Only include games with numeric min/max playtime within the target range
+            fragment(
+              "? ~ '^[0-9]+$' AND ? ~ '^[0-9]+$' AND CAST(? AS INTEGER) >= CAST(? AS INTEGER) AND CAST(? AS INTEGER) <= CAST(? AS INTEGER)",
+              t.minplaytime, t.maxplaytime, ^target_time, t.minplaytime, ^target_time, t.maxplaytime
+            )
         )
 
       _ ->
@@ -238,8 +244,10 @@ defmodule Core.BggCacher do
       max_rank when is_integer(max_rank) ->
         from(t in query,
           where:
+            # Only include games with numeric ranks that are within the specified range
             fragment(
-              "CAST(? AS INTEGER) > 0 AND CAST(? AS INTEGER) <= ?",
+              "? ~ '^[0-9]+$' AND CAST(? AS INTEGER) > 0 AND CAST(? AS INTEGER) <= ?",
+              t.rank,
               t.rank,
               t.rank,
               ^max_rank
@@ -254,7 +262,11 @@ defmodule Core.BggCacher do
   defp apply_filter({:average, value}, query) when value not in [nil, ""] do
     case parse_float(value) do
       min_rating when is_float(min_rating) ->
-        from(t in query, where: fragment("CAST(? AS FLOAT) >= ?", t.average, ^min_rating))
+        from(t in query,
+          where:
+            # Only include games with numeric average ratings
+            fragment("? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) >= ?", t.average, t.average, ^min_rating)
+        )
 
       _ ->
         query
@@ -264,7 +276,11 @@ defmodule Core.BggCacher do
   defp apply_filter({:averageweight_min, value}, query) when value not in [nil, ""] do
     case parse_float(value) do
       min_weight when is_float(min_weight) ->
-        from(t in query, where: fragment("CAST(? AS FLOAT) >= ?", t.averageweight, ^min_weight))
+        from(t in query,
+          where:
+            # Only include games with numeric average weights
+            fragment("? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) >= ?", t.averageweight, t.averageweight, ^min_weight)
+        )
 
       _ ->
         query
@@ -274,7 +290,11 @@ defmodule Core.BggCacher do
   defp apply_filter({:averageweight_max, value}, query) when value not in [nil, ""] do
     case parse_float(value) do
       max_weight when is_float(max_weight) ->
-        from(t in query, where: fragment("CAST(? AS FLOAT) <= ?", t.averageweight, ^max_weight))
+        from(t in query,
+          where:
+            # Only include games with numeric average weights
+            fragment("? ~ '^[0-9.]+$' AND CAST(? AS FLOAT) <= ?", t.averageweight, t.averageweight, ^max_weight)
+        )
 
       _ ->
         query
