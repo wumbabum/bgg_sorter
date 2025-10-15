@@ -579,6 +579,87 @@
   .pagination-info {
     text-align: center;
   }
+  
+  .collection-content {
+    margin: 0;
+    padding: 0;
+  }
+  
+  .page-navigator-wrapper {
+    padding-top: 10px;
+  }
+  
+  .infobox {
+    font-size: 11px;
+    padding: 6px 10px;
+    border-left: none;
+    border-right: none;
+  }
+  
+  .collection-header {
+    padding: 8px 10px;
+    font-size: 11px;
+    border-left: none;
+    border-right: none;
+  }
+  
+  .collection {
+    margin-top: 0;
+    font-size: 12px;
+  }
+  
+  .collection-header-row {
+    height: 32px;
+  }
+  
+  .collection-header-row th {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+  
+  .collection-row {
+    height: auto;
+    min-height: 60px;
+  }
+  
+  .collection_thumbnail {
+    width: 50px;
+    padding: 6px 4px;
+  }
+  
+  .collection_thumbnail img {
+    width: 45px;
+    height: 45px;
+  }
+  
+  .collection_objectname {
+    padding: 6px 4px;
+    width: auto;
+  }
+  
+  .collection_objectname .primary {
+    font-size: 13px;
+    display: block;
+    margin-bottom: 2px;
+  }
+  
+  .collection_objectname .year {
+    font-size: 11px;
+    margin-left: 0;
+    display: block;
+  }
+  
+  .collection_objectname .description {
+    display: none;
+  }
+  
+  .collection_players,
+  .collection_rating,
+  .collection_weight {
+    padding: 6px 4px;
+    font-size: 12px;
+    width: auto;
+  }
 }
 
 /* BGG-style infobox and page navigator */
@@ -1434,53 +1515,146 @@ select[id*="time"] {
 /* Responsive advanced search */
 @media (max-width: 768px) {
   .section-container {
-    margin: 10px;
-    padding: 15px;
+    margin: 0;
+    padding: 0;
+    padding-top: 10px;
+  }
+  
+  .search-header {
+    padding: 8px 10px;
+    border-left: none;
+    border-right: none;
+  }
+  
+  .search-header-content {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .collection-title {
+    font-size: 14px;
+  }
+  
+  .collection-subtitle {
+    font-size: 10px;
+  }
+  
+  .close-button {
+    width: 24px;
+    height: 24px;
+    font-size: 20px;
+    margin-left: 10px;
   }
   
   .advanced-search-table {
     display: block;
     border: none;
+    border-left: 1px solid #cccccc;
+    border-right: 1px solid #cccccc;
+  }
+  
+  .advanced-search-table tbody {
+    display: block;
   }
   
   .advanced-search-table tr {
     display: block;
-    margin-bottom: 15px;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 15px;
+    border-bottom: 1px solid #cccccc;
+    padding: 10px;
+  }
+  
+  .advanced-search-table tr:last-child {
+    border-bottom: none;
   }
   
   .advanced-search-table td {
     display: block;
-    width: 100%;
-    text-align: left;
-    padding: 5px 0;
-    border-bottom: none;
-    border-right: none;
-    background-color: transparent;
+    width: 100% !important;
+    text-align: left !important;
+    padding: 0 !important;
+    border: none !important;
+    background-color: transparent !important;
   }
   
   .advanced-search-table td:first-child {
-    font-size: 14px;
-    margin-bottom: 8px;
-    padding-right: 0;
-    background-color: transparent;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    padding: 0 !important;
+  }
+  
+  .advanced-search-table td:last-child {
+    margin-top: 5px;
   }
   
   .advanced-search-table input[type="text"],
+  .advanced-search-table input[type="number"],
   .advanced-search-table select {
-    width: 100%;
-    max-width: 250px;
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 14px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+  }
+  
+  .advanced-search-table select {
+    font-size: 14px;
+  }
+  
+  .range-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .range-input {
+    width: 80px !important;
+    flex: 1;
+    min-width: 60px;
+  }
+  
+  .advanced-search-table span[aria-hidden="true"],
+  .help-text {
+    font-size: 12px;
   }
   
   .advanced-search-buttons {
+    padding: 12px 10px;
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-left: none;
+    border-right: none;
   }
   
   .advanced-search-submit,
   .clear-button {
-    display: block;
     width: 100%;
-    margin: 8px 0;
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  
+  .mechanics-filter-container {
+    width: 100%;
+  }
+  
+  .mechanics-tags {
+    gap: 6px;
+  }
+  
+  .mechanic-tag {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  
+  .mechanics-search-input {
+    width: 100%;
+    max-width: 100%;
+    font-size: 14px;
+    padding: 6px 8px;
   }
 }
