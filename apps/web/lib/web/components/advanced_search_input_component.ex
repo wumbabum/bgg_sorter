@@ -16,6 +16,7 @@ defmodule Web.Components.AdvancedSearchInputComponent do
           size={@size || "35"}
           value={@value || ""}
           placeholder={@placeholder || ""}
+          autocomplete={assigns[:autocomplete] || "off"}
         />
       </td>
     </tr>

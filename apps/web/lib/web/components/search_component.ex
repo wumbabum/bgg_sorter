@@ -13,15 +13,15 @@ defmodule Web.Components.SearchComponent do
     </div>
 
     <div style="text-align: center; margin-top: 40px; padding-bottom: 40px;">
-      <form phx-submit="search_collection">
+      <form phx-submit="search_collection" class="main-search-form">
         <input
           type="text"
           name="username"
           placeholder="Enter BGG username..."
-          class="search-input"
-          style="font-size: 18px; padding: 12px; width: 300px; margin-right: 10px;"
+          class="main-search-input"
+          autocomplete="on"
         />
-        <button type="submit" class="search-button" style="font-size: 18px; padding: 12px 20px;">
+        <button type="submit" class="main-search-button">
           Search Collection
         </button>
       </form>

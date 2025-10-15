@@ -26,10 +26,44 @@ import {hooks as colocatedHooks} from "phoenix-colocated/web"
 import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+// Hook to preserve mobile search state across LiveView updates
+const mobileSearchHook = {
+  mounted() {
+    this.restoreMobileSearchState();
+  },
+  updated() {
+    this.restoreMobileSearchState();
+  },
+  restoreMobileSearchState() {
+    // Check if we should restore mobile search state
+    const form = this.el.querySelector('.search-form');
+    const headerContent = this.el.querySelector('.global-header-content');
+    
+    if (form && window.innerWidth <= 768) {
+      // If there was a search just performed, briefly restore the open state
+      // to allow smooth closing animation
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasUsername = window.location.pathname.includes('/collection/');
+      
+      if (hasUsername && sessionStorage.getItem('mobileSearchWasOpen') === 'true') {
+        // Restore the open state briefly, then close it smoothly
+        form.setAttribute('data-mobile-search-open', 'true');
+        headerContent?.classList.add('mobile-search-active');
+        
+        setTimeout(() => {
+          form.removeAttribute('data-mobile-search-open');
+          headerContent?.classList.remove('mobile-search-active');
+          sessionStorage.removeItem('mobileSearchWasOpen');
+        }, 50); // Brief delay to allow for smooth close
+      }
+    }
+  }
+};
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, MobileSearchHook: mobileSearchHook},
 })
 
 // Show progress bar on live navigation and form submits
@@ -45,6 +79,102 @@ liveSocket.connect()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
+
+// Mobile search behavior: expand input on first click, submit on second click
+window.handleMobileSearch = function(event, button) {
+  const isMobileState = window.innerWidth <= 768;
+  
+  // On desktop, always allow form submission
+  if (!isMobileState) {
+    return; // Let normal form submission happen on desktop
+  }
+  
+  // Mobile state: track toggle state with data attribute
+  const form = button.parentElement;
+  const searchInput = form.querySelector('.search-input');
+  const isToggled = form.hasAttribute('data-mobile-search-open');
+  const headerContent = document.querySelector('.global-header-content');
+  
+  if (!isToggled) {
+    // Mobile state AND not toggled: prevent submission, just open input
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Mark as toggled and focus input to trigger CSS expansion
+    form.setAttribute('data-mobile-search-open', 'true');
+    headerContent?.classList.add('mobile-search-active');
+    searchInput.focus();
+    
+    return false;
+  } else {
+    // Mobile state AND toggled: check if input has value
+    const inputValue = searchInput.value.trim();
+    
+    if (inputValue === '') {
+      // Empty input: close the search instead of submitting
+      event.preventDefault();
+      event.stopPropagation();
+      
+      console.log('Mobile search: Closing empty input');
+      
+      // Blur first to ensure focus styles don't interfere
+      searchInput.blur();
+      
+      // Small delay to ensure blur completes before starting close animation
+      setTimeout(() => {
+        // Remove the toggle state to close the search
+        form.removeAttribute('data-mobile-search-open');
+        headerContent?.classList.remove('mobile-search-active');
+        
+        // Clear the input value after animation completes for clean state
+        setTimeout(() => {
+          searchInput.value = '';
+          console.log('Mobile search: Input cleared and animation complete');
+        }, 150); // Match the CSS transition duration
+      }, 10); // Small delay to ensure blur is processed
+      
+      return false;
+    } else {
+      // Has input value: allow submission
+      // Save that mobile search was open for restoration after navigation
+      sessionStorage.setItem('mobileSearchWasOpen', 'true');
+      
+      // Remove the toggle state for next interaction
+      form.removeAttribute('data-mobile-search-open');
+      headerContent?.classList.remove('mobile-search-active');
+      
+      // Let the form submit normally
+      return true;
+    }
+  }
+}
+
+// Close mobile search when clicking outside or losing focus
+document.addEventListener('click', function(event) {
+  if (window.innerWidth <= 768) {
+    const searchForms = document.querySelectorAll('.search-form[data-mobile-search-open]');
+    const headerContent = document.querySelector('.global-header-content');
+    searchForms.forEach(function(form) {
+      // Don't close if clicking on the Advanced button or other nav elements
+      const isAdvancedButton = event.target.closest('.nav-button');
+      const isWithinForm = form.contains(event.target);
+      
+      // If click is outside the form AND not on the Advanced button, close it
+      if (!isWithinForm && !isAdvancedButton) {
+        form.removeAttribute('data-mobile-search-open');
+        headerContent?.classList.remove('mobile-search-active');
+        const input = form.querySelector('.search-input');
+        if (input) {
+          input.blur();
+          // Clear the input value after animation completes for clean state
+          setTimeout(() => {
+            input.value = '';
+          }, 150); // Match the CSS transition duration
+        }
+      }
+    });
+  }
+});
 
 // The lines below enable quality of life phoenix_live_reload
 // development features:

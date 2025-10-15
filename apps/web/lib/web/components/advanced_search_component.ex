@@ -35,6 +35,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               value={@username || ""}
               placeholder="Enter username to search their collection"
               size="35"
+              autocomplete="on"
             />
             
     <!-- Board Game Name -->

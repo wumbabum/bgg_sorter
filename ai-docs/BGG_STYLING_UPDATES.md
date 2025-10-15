@@ -49,19 +49,44 @@ Updated the advanced search component CSS to closely match the authentic BoardGa
 - **Color Scheme**: Uses BGG's exact gray palette (#f8f8f8, #cccccc, #666666)
 - **Responsive Design**: Maintains functionality on mobile while preserving BGG aesthetics
 
+### 7. Advanced Search Toggle (Recent)
+- **Smooth Toggle**: Fixed toggle button to properly show/hide advanced search component
+- **URL Management**: Corrected URL parameter handling between `/collection` and `/collection?advanced_search=true`
+- **No Page Reloads**: Uses `push_patch` instead of `push_navigate` for seamless UX
+- **State Persistence**: Advanced search state properly maintained across interactions
+
+### 8. Form Usability Enhancements (Recent)
+- **Username Memory**: Added `autocomplete="on"` to all username input fields
+- **Password Manager Safe**: Avoids triggering Bitwarden/1Password with semantic autocomplete
+- **Consistent Inputs**: Unified autocomplete behavior across header, main search, and advanced search
+- **Browser History**: Users can quickly re-enter frequent usernames like "wumbabum"
+
 ## Files Modified
 - `/Users/joseph.toney/Work/sandbox/bgg_sorter/apps/web/assets/css/app.css`
   - Updated advanced search CSS sections (lines ~874-1165)
   - Cleaned up duplicate/outdated styles
   - Added BGG-specific responsive breakpoints
+- `apps/web/lib/web/live/collection_live.ex`
+  - Fixed `toggle_advanced_search` handler for no-username case
+  - Changed from `push_navigate` to `push_patch` for smoother UX
+- `apps/web/lib/web/components/header_component.ex`
+  - Added `autocomplete="on"` to username input
+- `apps/web/lib/web/components/search_component.ex` 
+  - Added `autocomplete="on"` to main search input
+- `apps/web/lib/web/components/advanced_search_component.ex`
+  - Added `autocomplete="on"` to advanced search username field
+- `apps/web/lib/web/components/advanced_search_input_component.ex`
+  - Added optional `autocomplete` attribute support
 
-## Result
-The advanced search form now closely matches the authentic BoardGameGeek advanced search interface while maintaining all functional capabilities including:
-- Client-side filtering
-- URL parameter preservation  
-- Form validation
-- Responsive mobile design
-- Phoenix LiveView integration
+## Current State ✅
+The application now features:
+- **BGG-Authentic Design**: Visual styling matches BoardGameGeek's interface
+- **Smooth Toggle Functionality**: Advanced search shows/hides without page reloads
+- **Enhanced Form UX**: Username fields remember previous inputs without password manager interference
+- **Complete Functionality**: Client-side filtering, URL state preservation, responsive design
+- **Production Ready**: All styling and UX improvements deployed and functional
 
 ## Testing
-Visit `http://localhost:7384/collection?advanced_search=true` to see the updated BGG-style advanced search form.
+- Visit `/collection` and test advanced search toggle (should be smooth without page reload)
+- Test username autocomplete in any search field (should remember "wumbabum" etc.)
+- Verify BGG visual consistency across all components

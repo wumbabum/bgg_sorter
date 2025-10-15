@@ -149,6 +149,7 @@ defmodule Web.CollectionLive do
 
     # Get advanced_search from URL query parameter, default to false
     advanced_search = Map.get(params, "advanced_search") == "true"
+    Logger.info("🔍 PARAMS DEBUG: advanced_search from URL=#{advanced_search}, current=#{socket.assigns.advanced_search}")
 
     # Parse filter parameters from URL
     filters = parse_url_filters(params)
@@ -806,20 +807,38 @@ defmodule Web.CollectionLive do
   def handle_event("toggle_advanced_search", _params, socket) do
     current_advanced_search = socket.assigns.advanced_search
     new_advanced_search = !current_advanced_search
+    
+    Logger.info("🔄 TOGGLE DEBUG: current=#{current_advanced_search}, new=#{new_advanced_search}")
 
     case socket.assigns.username do
       nil ->
-        # No username, navigate to advanced search page
-        {:noreply, push_navigate(socket, to: "/collection?advanced_search=true")}
+        # No username, update URL and state with push_patch for smoother experience
+        url = if new_advanced_search do
+          "/collection?advanced_search=true"
+        else
+          "/collection"
+        end
+        socket = assign(socket, :advanced_search, new_advanced_search)
+        {:noreply, push_patch(socket, to: url)}
 
       username ->
         # Have username and collection data, just toggle advanced search with push_patch
-        new_url =
-          if new_advanced_search do
-            "/collection/#{username}?advanced_search=true"
-          else
-            "/collection/#{username}"
-          end
+        # Preserve all current URL parameters (filters, page, sort, etc.)
+        filters = socket.assigns.filters
+        current_page = socket.assigns.current_page
+        sort_field = socket.assigns.sort_by
+        sort_direction = socket.assigns.sort_direction
+        
+        new_url = build_collection_url_with_sort_and_page(
+          username,
+          filters,
+          sort_field,
+          sort_direction,
+          page: current_page,
+          advanced_search: new_advanced_search
+        )
+        
+        Logger.info("🌐 URL DEBUG: new_advanced_search=#{new_advanced_search}, generated URL=#{new_url}")
 
         # Use push_patch to update URL without losing data
         socket = assign(socket, :advanced_search, new_advanced_search)
