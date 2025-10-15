@@ -51,8 +51,6 @@ defmodule Core.Schemas.CollectionRequestTest do
       assert Keyword.has_key?(changeset.errors, :version)
     end
 
-
-
     test "validates binary flags are 0 or 1" do
       binary_fields = [
         :own,

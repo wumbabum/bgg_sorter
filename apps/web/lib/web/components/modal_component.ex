@@ -3,6 +3,7 @@ defmodule Web.Components.ModalComponent do
 
   use Phoenix.Component
   import Phoenix.HTML
+  alias Web.Components.MechanicsTagComponent
 
   def game_modal(assigns) do
     ~H"""
@@ -10,7 +11,7 @@ defmodule Web.Components.ModalComponent do
       <div class="modal-overlay" phx-click="close_modal">
         <div class="modal-content" phx-click="stop_propagation">
           <div class="modal-header">
-            <h2>{@selected_thing.primary_name || "Board Game Details"}</h2>
+            <h2>{get_modal_title(assigns)}</h2>
             <button class="modal-close" phx-click="close_modal" aria-label="Close">×</button>
           </div>
 
@@ -119,6 +120,21 @@ defmodule Web.Components.ModalComponent do
         </div>
       </div>
 
+      <%= if @thing_details.mechanics && length(@thing_details.mechanics) > 0 do %>
+        <div class="game-mechanics">
+          <h4>Mechanics</h4>
+          <div class="mechanics-tags">
+            <%= for mechanic <- @thing_details.mechanics do %>
+              <MechanicsTagComponent.mechanic_tag 
+                mechanic={mechanic} 
+                highlighted={mechanic_selected?(assigns, mechanic.id)} 
+                clickable={true} 
+              />
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
       <%= if @thing_details.description do %>
         <div class="game-description">
           <h4>Description</h4>
@@ -194,4 +210,21 @@ defmodule Web.Components.ModalComponent do
   end
 
   defp format_description(_), do: ""
+
+  defp get_modal_title(assigns) do
+    cond do
+      assigns[:thing_details] && assigns.thing_details.primary_name ->
+        assigns.thing_details.primary_name
+      assigns[:selected_thing] && assigns.selected_thing.primary_name ->
+        assigns.selected_thing.primary_name
+      true ->
+        "Board Game Details"
+    end
+  end
+  
+  # Check if a mechanic is selected
+  defp mechanic_selected?(assigns, mechanic_id) do
+    selected_mechanics = Map.get(assigns, :selected_mechanics, MapSet.new())
+    MapSet.member?(selected_mechanics, mechanic_id)
+  end
 end

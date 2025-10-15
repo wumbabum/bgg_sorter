@@ -253,6 +253,10 @@ defmodule Core.BggGatewayTest do
                <minplaytime value="30" />
                <maxplaytime value="30" />
                <minage value="10" />
+               <link type="boardgamemechanic" id="2001" value="Action Point Allowance System" />
+               <link type="boardgamemechanic" id="2856" value="Card Drafting" />
+               <link type="boardgamemechanic" id="2004" value="Set Collection" />
+               <link type="boardgamemechanic" id="2020" value="Simultaneous Action Selection" />
                <statistics page="1">
                  <ratings >
                    <usersrated value="96841" />
@@ -278,6 +282,9 @@ defmodule Core.BggGatewayTest do
                <minplaytime value="45" />
                <maxplaytime value="45" />
                <minage value="14" />
+               <link type="boardgamemechanic" id="2040" value="Hand Management" />
+               <link type="boardgamemechanic" id="2002" value="Card Play Conflicts" />
+               <link type="boardgamemechanic" id="2791" value="Deck Construction" />
                <statistics page="1">
                  <ratings >
                    <usersrated value="44371" />
@@ -303,6 +310,10 @@ defmodule Core.BggGatewayTest do
                <minplaytime value="60" />
                <maxplaytime value="90" />
                <minage value="14" />
+               <link type="boardgamemechanic" id="2080" value="Area Control" />
+               <link type="boardgamemechanic" id="2046" value="Area Movement" />
+               <link type="boardgamemechanic" id="2040" value="Hand Management" />
+               <link type="boardgamemechanic" id="2011" value="Modular Board" />
                <statistics page="1">
                  <ratings >
                    <usersrated value="4251" />
@@ -366,6 +377,22 @@ defmodule Core.BggGatewayTest do
       assert third_thing.yearpublished == "2024"
       assert third_thing.average == "8.66"
       assert third_thing.rank == "153"
+
+      # Verify raw_mechanics field is populated for BggCacher processing
+      assert Map.has_key?(first_thing, :raw_mechanics)
+      assert is_list(first_thing.raw_mechanics)
+      assert length(first_thing.raw_mechanics) == 4
+      assert "Action Point Allowance System" in first_thing.raw_mechanics
+
+      assert Map.has_key?(second_thing, :raw_mechanics)
+      assert is_list(second_thing.raw_mechanics)
+      assert length(second_thing.raw_mechanics) == 3
+      assert "Hand Management" in second_thing.raw_mechanics
+
+      assert Map.has_key?(third_thing, :raw_mechanics)
+      assert is_list(third_thing.raw_mechanics)
+      assert length(third_thing.raw_mechanics) == 4
+      assert "Area Control" in third_thing.raw_mechanics
     end
 
     test "returns error XML for invalid thing IDs" do

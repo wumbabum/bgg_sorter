@@ -458,6 +458,57 @@
   opacity: 0.6;
 }
 
+/* Footer styling */
+.global-footer {
+  background-color: #3f3f74;
+  color: white;
+  border-top: 2px solid #666;
+  margin-top: 30px;
+  padding: 10px 0;
+  text-align: center;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+.footer-text {
+  margin: 0;
+  color: white;
+  font-size: 13px;
+  font-family: Verdana, Arial, sans-serif;
+  font-weight: normal;
+}
+
+.footer-link {
+  color: #cbcbdd;
+  text-decoration: underline;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.footer-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+  background-color: #3f3f74;
+  text-decoration: none;
+}
+
+.footer-link:visited {
+  color: #3f3f74;
+}
+
+.footer-link:visited:hover {
+  color: #ffffff;
+}
+
 .item-placeholder {
   width: 60px;
   height: 60px;
@@ -946,6 +997,75 @@
   line-height: 1.6;
 }
 
+/* Game mechanics styling */
+.game-mechanics {
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+  margin-top: 20px;
+}
+
+.game-mechanics h4 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  color: #3f3f74;
+  font-weight: bold;
+}
+
+.mechanics-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.mechanic-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: #f0f0f0;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: normal;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mechanic-tag:hover {
+  background-color: #e0e0e0;
+  border-color: #999;
+  color: #222;
+}
+
+.mechanic-tag--highlighted {
+  background-color: #3f3f74;
+  color: white;
+  border-color: #2d2d5a;
+}
+
+.mechanic-tag--highlighted:hover {
+  background-color: #333658;
+  border-color: #1f1f42;
+  color: white;
+}
+
+.mechanic-tag--small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.mechanic-tag--clickable {
+  cursor: pointer;
+}
+
+.mechanic-tag--clickable:focus {
+  outline: 2px solid #3f3f74;
+  outline-offset: 2px;
+}
+
 /* Responsive modal */
 @media (max-width: 768px) {
   .modal-overlay {
@@ -1124,8 +1244,77 @@
   font-weight: normal;
 }
 
-.clear-button:hover {
+  .clear-button:hover {
+    background: linear-gradient(to bottom, #f0f0f0 0%, #d0d0d0 100%);
+  }
+
+/* Mechanics filter styling */
+.mechanics-filter-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mechanics-all-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mechanics-expand-button {
+  background: linear-gradient(to bottom, #ffffff 0%, #e6e6e6 100%);
+  color: #000000;
+  border: 1px solid #aaaaaa;
+  border-radius: 0;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: Verdana, Arial, sans-serif;
+  font-weight: normal;
+}
+
+.mechanics-expand-button:hover {
   background: linear-gradient(to bottom, #f0f0f0 0%, #d0d0d0 100%);
+}
+
+.mechanics-expanded-section {
+  margin-top: 10px;
+  border-top: 1px solid #ddd;
+  padding-top: 10px;
+}
+
+.mechanics-search-box {
+  margin-bottom: 10px;
+}
+
+.mechanics-search-input {
+  width: 100%;
+  max-width: 250px;
+  padding: 4px 8px;
+  border: 1px solid #666666;
+  border-radius: 0;
+  font-size: 11px;
+  font-family: Verdana, Arial, sans-serif;
+}
+
+.mechanics-search-input:focus {
+  border-color: #333333;
+  outline: none;
+}
+
+.mechanics-popular-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.mechanics-loading {
+  color: #666;
+  font-style: italic;
+  font-size: 11px;
+  margin: 0;
 }
 
 /* BGG-style range input styling */

@@ -23,12 +23,12 @@ defmodule Core.Schemas.ThingTest do
           description: "A competitive bird-themed strategy game"
         },
         %Thing{
-          id: "2", 
+          id: "2",
           type: "boardgame",
           primary_name: "Azul",
           yearpublished: "2017",
           minplayers: "2",
-          maxplayers: "4", 
+          maxplayers: "4",
           playingtime: "45",
           minplaytime: "30",
           maxplaytime: "45",
@@ -39,7 +39,7 @@ defmodule Core.Schemas.ThingTest do
         },
         %Thing{
           id: "3",
-          type: "boardgame", 
+          type: "boardgame",
           primary_name: "Gloomhaven",
           yearpublished: "2017",
           minplayers: "1",
@@ -47,7 +47,7 @@ defmodule Core.Schemas.ThingTest do
           playingtime: "120",
           minplaytime: "60",
           maxplaytime: "120",
-          minage: "14", 
+          minage: "14",
           rank: "1",
           averageweight: "3.86",
           description: "Epic dungeon-crawling campaign game"
@@ -104,7 +104,7 @@ defmodule Core.Schemas.ThingTest do
       # Should match "Wingspan"
       assert [%Thing{primary_name: "Wingspan"}] = Thing.filter_by(things, %{primary_name: "wing"})
       assert [%Thing{primary_name: "Wingspan"}] = Thing.filter_by(things, %{primary_name: "WING"})
-      
+
       # Should match all five (all contain 'a')
       result = Thing.filter_by(things, %{primary_name: "a"})
       assert length(result) == 5
@@ -118,13 +118,13 @@ defmodule Core.Schemas.ThingTest do
     test "filters by player count", %{things: things} do
       # 2 players: should match Wingspan (1-5), Azul (2-4), Gloomhaven (1-4), Android: Netrunner (2-2)
       assert length(Thing.filter_by(things, %{players: "2"})) == 4
-      
+
       # 5 players: should match Wingspan (1-5) and The Resistance (5-10)
       result = Thing.filter_by(things, %{players: "5"})
       assert length(result) == 2
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
       assert Enum.any?(result, &(&1.primary_name == "The Resistance"))
-      
+
       # 6 players: should match The Resistance (5-10)
       assert [%Thing{primary_name: "The Resistance"}] = Thing.filter_by(things, %{players: "6"})
     end
@@ -141,7 +141,7 @@ defmodule Core.Schemas.ThingTest do
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
       assert Enum.any?(result, &(&1.primary_name == "Azul"))
       assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
-      
+
       # Test games that include 25 minutes in their range:
       # - Wingspan: 40-75 min (✗)
       # - Azul: 30-45 min (✗)
@@ -152,7 +152,7 @@ defmodule Core.Schemas.ThingTest do
       assert length(result) == 2
       assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
       assert Enum.any?(result, &(&1.primary_name == "The Resistance"))
-      
+
       # Test games that include 100 minutes in their range:
       # Only Gloomhaven: 60-120 min should match
       result = Thing.filter_by(things, %{playingtime: "100"})
@@ -175,7 +175,7 @@ defmodule Core.Schemas.ThingTest do
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
       assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
       assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
-      
+
       # Max weight 2.5: Wingspan (2.44), Azul (1.78), The Resistance (1.591)
       result = Thing.filter_by(things, %{averageweight_max: "2.5"})
       assert length(result) == 3
@@ -202,11 +202,11 @@ defmodule Core.Schemas.ThingTest do
       #   - Wingspan: 40-75 min (✓)
       #   - Azul: 30-45 min (✗) - 50 is outside range
       #   - Gloomhaven: 60-120 min (✗) - 50 is outside range
-      
+
       result = Thing.filter_by(things, %{players: "4", playingtime: "50"})
       assert length(result) == 1
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
-      
+
       # Test another combination:
       # - players: "3" -> Wingspan (1-5), Azul (2-4), Gloomhaven (1-4) support 3 players
       # - playingtime: "40" -> should be within playing time range:
@@ -222,7 +222,7 @@ defmodule Core.Schemas.ThingTest do
     test "returns empty list when no things match all filters", %{things: things} do
       # No games support 11 players (The Resistance supports up to 10)
       assert Thing.filter_by(things, %{players: "11"}) == []
-      
+
       # No games ranked at position 0 (impossible rank)
       assert Thing.filter_by(things, %{rank: "0"}) == []
     end
@@ -231,7 +231,7 @@ defmodule Core.Schemas.ThingTest do
       # Create thing with invalid data
       invalid_thing = %Thing{
         id: "4",
-        type: "boardgame", 
+        type: "boardgame",
         primary_name: "Invalid Game",
         yearpublished: "not_a_year",
         minplayers: "not_a_number",
@@ -241,15 +241,16 @@ defmodule Core.Schemas.ThingTest do
         rank: "not_rank",
         averageweight: "not_weight"
       }
-      
+
       things_with_invalid = things ++ [invalid_thing]
-      
+
       # Should include the invalid thing (filtering defaults to true for unparseable data)
       result = Thing.filter_by(things_with_invalid, %{players: "3"})
-      
+
       # Should include things that actually support 3 players plus the invalid one (defaults to include)
       # 3 players supported by: Wingspan (1-5), Azul (2-4), Gloomhaven (1-4) + invalid one
-      assert length(result) == 4  # 3 valid games + the invalid one
+      # 3 valid games + the invalid one
+      assert length(result) == 4
     end
 
     test "ignores unknown filter keys", %{things: things} do
@@ -257,7 +258,7 @@ defmodule Core.Schemas.ThingTest do
       result = Thing.filter_by(things, %{unknown_filter: "some_value"})
       assert result == things
     end
-    
+
     test "applies weight defaults when only min provided", %{things: things} do
       # Only min weight provided (2.0), should default max to 5.0
       # Expected: Wingspan (2.44), Gloomhaven (3.86), Android: Netrunner (3.413)
@@ -268,7 +269,7 @@ defmodule Core.Schemas.ThingTest do
       assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
       assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
     end
-    
+
     test "applies weight defaults when only max provided", %{things: things} do
       # Only max weight provided (2.5), should default min to 0
       # Expected: Wingspan (2.44), Azul (1.78), The Resistance (1.591)
@@ -279,14 +280,59 @@ defmodule Core.Schemas.ThingTest do
       assert Enum.any?(result, &(&1.primary_name == "Azul"))
       assert Enum.any?(result, &(&1.primary_name == "The Resistance"))
     end
-    
-    test "applies weight defaults when only min provided with empty string for max", %{things: things} do
+
+    test "applies weight defaults when only min provided with empty string for max", %{
+      things: things
+    } do
       # Only min weight provided (2.0) with empty string for max, should default max to 5.0
       result = Thing.filter_by(things, %{averageweight_min: "2.0", averageweight_max: ""})
       assert length(result) == 3
       assert Enum.any?(result, &(&1.primary_name == "Wingspan"))
       assert Enum.any?(result, &(&1.primary_name == "Gloomhaven"))
       assert Enum.any?(result, &(&1.primary_name == "Android: Netrunner"))
+    end
+  end
+
+  describe "generate_mechanics_checksum/1" do
+    test "generates consistent checksum for mechanic list" do
+      mechanics1 = ["Hand Management", "Worker Placement", "Engine Building"]
+      # Different order
+      mechanics2 = ["Worker Placement", "Hand Management", "Engine Building"]
+
+      checksum1 = Thing.generate_mechanics_checksum(mechanics1)
+      checksum2 = Thing.generate_mechanics_checksum(mechanics2)
+
+      # Should be the same regardless of input order (sorted internally)
+      assert checksum1 == checksum2
+      assert is_binary(checksum1)
+      # SHA256 hex string length
+      assert String.length(checksum1) == 64
+    end
+
+    test "returns nil for empty list" do
+      assert Thing.generate_mechanics_checksum([]) == nil
+    end
+
+    test "returns nil for nil input" do
+      assert Thing.generate_mechanics_checksum(nil) == nil
+    end
+
+    test "generates different checksums for different mechanic lists" do
+      mechanics1 = ["Hand Management", "Worker Placement"]
+      mechanics2 = ["Hand Management", "Engine Building"]
+
+      checksum1 = Thing.generate_mechanics_checksum(mechanics1)
+      checksum2 = Thing.generate_mechanics_checksum(mechanics2)
+
+      refute checksum1 == checksum2
+    end
+
+    test "handles single mechanic" do
+      mechanics = ["Hand Management"]
+      checksum = Thing.generate_mechanics_checksum(mechanics)
+
+      assert is_binary(checksum)
+      assert String.length(checksum) == 64
     end
   end
 end

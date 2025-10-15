@@ -162,7 +162,8 @@ defmodule Core.BggGateway do
           bayesaverage: ~x".//statistics/ratings/bayesaverage/@value"so,
           rank: ~x".//statistics/ratings/ranks/rank[@name='boardgame']/@value"so,
           owned: ~x".//statistics/ratings/owned/@value"so,
-          averageweight: ~x".//statistics/ratings/averageweight/@value"so
+          averageweight: ~x".//statistics/ratings/averageweight/@value"so,
+          mechanics: ~x"./link[@type='boardgamemechanic']/@value"ls
         ]
       )
 
@@ -176,9 +177,18 @@ defmodule Core.BggGateway do
   defp cast_things(things_data) do
     things =
       Enum.map(things_data, fn thing_params ->
-        case Thing.changeset(%Thing{}, thing_params) do
+        # Extract mechanics for later processing
+        mechanics_list = Map.get(thing_params, :mechanics, [])
+
+        # Create Thing changeset without mechanics field
+        thing_params_clean = Map.delete(thing_params, :mechanics)
+
+        case Thing.changeset(%Thing{}, thing_params_clean) do
           %Ecto.Changeset{valid?: true} = changeset ->
-            {:ok, Ecto.Changeset.apply_changes(changeset)}
+            thing = Ecto.Changeset.apply_changes(changeset)
+            # Add raw_mechanics as a virtual field for BggCacher processing
+            thing_with_mechanics = Map.put(thing, :raw_mechanics, mechanics_list)
+            {:ok, thing_with_mechanics}
 
           %Ecto.Changeset{valid?: false} ->
             {:error, :invalid_thing_data}

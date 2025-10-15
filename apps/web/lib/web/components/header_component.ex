@@ -6,7 +6,7 @@ defmodule Web.Components.HeaderComponent do
   def header(assigns) do
     # Set default values for optional assigns
     assigns = assign_new(assigns, :advanced_search, fn -> false end)
-    
+
     ~H"""
     <div class="global-header">
       <div class="global-header-content">
@@ -15,10 +15,13 @@ defmodule Web.Components.HeaderComponent do
           Bgg Sorter
         </.link>
         <div class="global-header-nav">
-          <button phx-click="toggle_advanced_search" class={[
-            "nav-link nav-button",
-            @advanced_search && "active"
-          ]}>
+          <button
+            phx-click="toggle_advanced_search"
+            class={[
+              "nav-link nav-button",
+              @advanced_search && "active"
+            ]}
+          >
             Advanced Search
           </button>
           <div class="global-header-nav-search">

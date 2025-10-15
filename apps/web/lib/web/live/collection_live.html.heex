@@ -7,6 +7,11 @@
       <Web.Components.AdvancedSearchComponent.advanced_search_form
         username={@username}
         filters={@filters}
+        selected_mechanics={@selected_mechanics}
+        all_mechanics_expanded={Map.get(assigns, :all_mechanics_expanded, false)}
+        popular_mechanics={Map.get(assigns, :popular_mechanics, [])}
+        mechanics_search_query={Map.get(assigns, :mechanics_search_query, "")}
+        mechanics_search_results={Map.get(assigns, :mechanics_search_results, [])}
       />
     <% end %>
   </div>
@@ -102,4 +107,5 @@
   selected_thing={@selected_thing}
   thing_details={@thing_details}
   modal_error={@modal_error}
+  selected_mechanics={@selected_mechanics}
 />

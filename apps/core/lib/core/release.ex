@@ -1,7 +1,7 @@
 defmodule Core.Release do
   @moduledoc """
   Release management functions for database migrations and setup in production environments.
-  
+
   This module provides helper functions to run database operations during deployment,
   particularly useful for containerized deployments where manual intervention is limited.
   """
@@ -10,12 +10,12 @@ defmodule Core.Release do
 
   @doc """
   Runs database migrations for the Core application.
-  
+
   This function can be called during deployment to ensure the database schema
   is up to date before starting the application.
-  
+
   ## Examples
-  
+
       # From a release console:
       Core.Release.migrate()
       
@@ -32,13 +32,13 @@ defmodule Core.Release do
 
   @doc """
   Rolls back the database to a previous migration version.
-  
+
   ## Parameters
-  
+
     - version: The migration version to rollback to
     
   ## Examples
-  
+
       Core.Release.rollback(20251012070159)
   """
   def rollback(version) do
@@ -51,7 +51,7 @@ defmodule Core.Release do
 
   @doc """
   Creates the database if it doesn't exist.
-  
+
   Useful for initial deployment setup.
   """
   def create_database do
@@ -73,7 +73,7 @@ defmodule Core.Release do
 
   @doc """
   Drops the database.
-  
+
   ⚠️  WARNING: This will permanently delete all data.
   Only use in development or when you're absolutely sure.
   """
@@ -96,7 +96,7 @@ defmodule Core.Release do
 
   @doc """
   Resets the database by dropping, creating, and migrating.
-  
+
   ⚠️  WARNING: This will permanently delete all data.
   Only use in development environments.
   """

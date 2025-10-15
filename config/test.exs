@@ -2,10 +2,11 @@ import Config
 
 config :core, :bgg_req_client, Core.MockReqClient
 
-# Configure ReqClient retry behavior for fast tests
+# Configure ReqClient to use Req.Test stub for testing
 config :core, Core.BggGateway.ReqClient,
   retry: false,
-  receive_timeout: 1000
+  receive_timeout: 1000,
+  plug: {Req.Test, Core.BggGateway.ReqClient}
 
 # Configure your database
 #
@@ -25,8 +26,7 @@ config :core, Core.Repo,
 config :web, Web.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "w5FjubOty76o4PMpifOcM8eaKWyruXMo8s1nOSpjfGNilK+cNYPf9s6cLaHav8Dg",
-  server: false
-
+  server: true
 
 # In test we don't send emails
 

@@ -3,6 +3,7 @@ defmodule Web.Components.AdvancedSearchComponent do
 
   use Phoenix.Component
   alias Web.Components.AdvancedSearchInputComponent
+  alias Web.Components.MechanicsSearchComponent
 
   def advanced_search_form(assigns) do
     ~H"""
@@ -13,7 +14,12 @@ defmodule Web.Components.AdvancedSearchComponent do
             <h1 class="collection-title">Advanced Collection Search</h1>
             <div class="collection-subtitle">Filter and search through BoardGameGeek collections</div>
           </div>
-          <button type="button" phx-click="toggle_advanced_search" class="close-button" title="Close Advanced Search">
+          <button
+            type="button"
+            phx-click="toggle_advanced_search"
+            class="close-button"
+            title="Close Advanced Search"
+          >
             ×
           </button>
         </div>
@@ -30,7 +36,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Enter username to search their collection"
               size="35"
             />
-
+            
     <!-- Board Game Name -->
             <AdvancedSearchInputComponent.text_input
               id="search-name"
@@ -40,10 +46,10 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Search by game name"
               size="35"
             />
-
+            
     <!-- Number of Players -->
             <AdvancedSearchInputComponent.player_select selected_players={@filters[:players] || ""} />
-
+            
     <!-- Playing Time -->
             <AdvancedSearchInputComponent.number_input
               id="search-playtime"
@@ -53,7 +59,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Time in minutes"
               suffix="minutes"
             />
-
+            
     <!-- User Rating (Minimum) -->
             <AdvancedSearchInputComponent.number_input
               id="search-rating"
@@ -63,7 +69,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Rating (1-10)"
               suffix="or higher"
             />
-
+            
     <!-- Maximum BGG Rank -->
             <AdvancedSearchInputComponent.number_input
               id="search-rank"
@@ -73,7 +79,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               placeholder="Rank number"
               suffix="or better (lower number)"
             />
-
+            
     <!-- Weight Range (1-5) -->
             <AdvancedSearchInputComponent.range_input
               id="search-weight"
@@ -83,7 +89,7 @@ defmodule Web.Components.AdvancedSearchComponent do
               max_value={@filters[:averageweight_max] || ""}
               suffix="(1 Light - 5 Heavy)"
             />
-
+            
     <!-- Game Description -->
             <AdvancedSearchInputComponent.text_input
               id="search-description"
@@ -92,6 +98,15 @@ defmodule Web.Components.AdvancedSearchComponent do
               value={@filters[:description] || ""}
               placeholder="Search within game descriptions"
               size="35"
+            />
+            
+            <!-- Mechanics Filter -->
+            <MechanicsSearchComponent.mechanics_filter_input
+              selected_mechanics={Map.get(assigns, :selected_mechanics, MapSet.new())}
+              all_mechanics_expanded={Map.get(assigns, :all_mechanics_expanded, false)}
+              popular_mechanics={Map.get(assigns, :popular_mechanics, [])}
+              mechanics_search_query={Map.get(assigns, :mechanics_search_query, "")}
+              mechanics_search_results={Map.get(assigns, :mechanics_search_results, [])}
             />
           </tbody>
         </table>

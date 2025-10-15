@@ -9,7 +9,13 @@ defmodule Web.Components.PageNavigatorComponent do
     <%= if @total_items > @items_per_page do %>
       <div class="infobox">
         <div class="fl">
-          {render_page_links(@current_page, max_pages(@total_items, @items_per_page), @username, @filters, @advanced_search)}
+          {render_page_links(
+            @current_page,
+            max_pages(@total_items, @items_per_page),
+            @username,
+            @filters,
+            @advanced_search
+          )}
         </div>
         <div class="fr">
           <!-- Right side content can be added here if needed -->
@@ -36,11 +42,17 @@ defmodule Web.Components.PageNavigatorComponent do
         <% :current -> %>
           <b>{text}</b>
         <% :link -> %>
-          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title={"page #{page}"}>
+          <.link
+            patch={build_page_url(@username, @filters, @advanced_search, page)}
+            title={"page #{page}"}
+          >
             {text}
           </.link>
         <% :prev -> %>
-          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title="previous page">
+          <.link
+            patch={build_page_url(@username, @filters, @advanced_search, page)}
+            title="previous page"
+          >
             <b>{text}</b>
           </.link>
         <% :next -> %>
@@ -125,17 +137,17 @@ defmodule Web.Components.PageNavigatorComponent do
   # Helper function to build page URLs with filters and advanced search preserved
   defp build_page_url(username, filters, advanced_search, page) do
     base_path = "/collection/#{username}"
-    
+
     # Build query parameters
     query_params =
       filters
       |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
       |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
       |> Enum.into(%{})
-    
+
     # Add page parameter
     query_params = Map.put(query_params, "page", to_string(page))
-    
+
     # Add advanced_search parameter if needed
     query_params =
       if advanced_search do
@@ -143,7 +155,7 @@ defmodule Web.Components.PageNavigatorComponent do
       else
         query_params
       end
-    
+
     # Build query string
     if Enum.empty?(query_params) do
       base_path

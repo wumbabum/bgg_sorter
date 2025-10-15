@@ -44,7 +44,10 @@ defmodule Core.BggGateway.ReqClient do
   @doc "Makes a GET request to the specified URL."
   @impl Behaviour
   def get(url, params, headers) do
-    Logger.info("Making GET request with args: #{inspect(%{url: url, params: params, headers: headers})}")
+    Logger.info(
+      "Making GET request with args: #{inspect(%{url: url, params: params, headers: headers})}"
+    )
+
     opts = [params: params, headers: headers] ++ req_options()
     Req.get(url, opts)
   end
@@ -88,6 +91,6 @@ defmodule Core.BggGateway.ReqClient do
 
   # Private helper to get configured request options
   defp req_options do
-    Application.get_env(:core, __MODULE__, [retry: false])
+    Application.get_env(:core, __MODULE__, retry: false)
   end
 end

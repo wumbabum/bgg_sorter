@@ -2,12 +2,12 @@ defmodule Web.Components.SortableHeaderComponent do
   @moduledoc """
   Component for sortable table headers with triangle indicators and click handlers.
   """
-  
+
   use Phoenix.Component
 
   @doc """
   Renders a sortable table header with triangle indicators.
-  
+
   ## Attributes
   - field: The field atom this header represents (e.g., :primary_name)
   - label: The display text for the header
@@ -23,7 +23,7 @@ defmodule Web.Components.SortableHeaderComponent do
     ~H"""
     <th class="sortable-header" phx-click="column_sort" phx-value-field={@field}>
       <div class="sortable-header-content">
-        <span class="sortable-header-label"><%= @label %></span>
+        <span class="sortable-header-label">{@label}</span>
         <span class="sort-indicator">
           <%= if @field == @current_sort_field do %>
             <%= if @current_sort_direction == :asc do %>

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Web" suffix=" · Phoenix Framework">
+    <.live_title default="BGG Sorter" suffix=" · Board Game Collection Manager">
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
@@ -32,5 +32,17 @@
   </head>
   <body>
     {@inner_content}
+    
+<!-- Footer -->
+    <footer class="global-footer">
+      <div class="footer-content">
+        <p class="footer-text">
+          made by
+          <a href="https://github.com/wumbabum/bgg_sorter" target="_blank" class="footer-link">
+            Wumbabum
+          </a>
+        </p>
+      </div>
+    </footer>
   </body>
 </html>
