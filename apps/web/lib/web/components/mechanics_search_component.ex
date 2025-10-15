@@ -22,12 +22,18 @@ defmodule Web.Components.MechanicsSearchComponent do
         <div class="mechanics-filter-container">
           <!-- All Tag - Click to expand/collapse -->
           <div class="mechanics-all-section">
-            <MechanicsTagComponent.mechanic_tag 
-              mechanic={%{id: "all", name: if(@all_mechanics_expanded, do: "All ▲", else: "All ▼")}} 
-              highlighted={false}
-              clickable={true}
-              size={:normal}
-            />
+            <span
+              class={"mechanic-tag mechanic-tag--all " <> if(@all_mechanics_expanded, do: "mechanic-tag--toggled", else: "")}
+              phx-click="toggle_all_mechanics"
+              phx-value-mechanic_id="all"
+              tabindex="0"
+            >
+              <%= if @all_mechanics_expanded do %>
+                <span class="arrow arrow--down">▼</span> All
+              <% else %>
+                <span class="arrow arrow--right">▶</span> All
+              <% end %>
+            </span>
           </div>
           
           <!-- Expandable Mechanics List (initially hidden) -->
