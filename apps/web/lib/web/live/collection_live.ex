@@ -712,11 +712,9 @@ defmodule Web.CollectionLive do
           filters = socket.assigns.filters
           advanced_search = socket.assigns.advanced_search
           current_page = socket.assigns.current_page
-          sort_field = socket.assigns.sort_by
-          sort_direction = socket.assigns.sort_direction
           
           url =
-            build_collection_url_with_sort(username, filters, sort_field, sort_direction,
+            build_collection_url(username, filters,
               page: current_page,
               advanced_search: advanced_search,
               modal_thing_id: thing_id
@@ -760,11 +758,9 @@ defmodule Web.CollectionLive do
         filters = socket.assigns.filters
         advanced_search = socket.assigns.advanced_search
         current_page = socket.assigns.current_page
-        sort_field = socket.assigns.sort_by
-        sort_direction = socket.assigns.sort_direction
         
         url =
-          build_collection_url_with_sort_and_page(username, filters, sort_field, sort_direction,
+          build_collection_url(username, filters,
             page: current_page,
             advanced_search: advanced_search
           )
