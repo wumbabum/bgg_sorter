@@ -426,6 +426,15 @@ defmodule Web.CollectionLive do
               Logger.info("🔍 MODAL DEBUG: All mechanic names: #{inspect(Enum.map(detailed_thing.mechanics, & &1.name))}")
             end
             
+            # Direct SQL check to verify data exists in production database
+            import Ecto.Query
+            direct_count = Core.Repo.one(
+              from tm in Core.Schemas.ThingMechanic, 
+              where: tm.thing_id == ^thing_id, 
+              select: count(tm.id)
+            )
+            Logger.info("🔍 MODAL DEBUG: Direct SQL count of mechanics for thing #{thing_id}: #{direct_count}")
+            
             socket =
               socket
               |> assign(:modal_loading, false)
