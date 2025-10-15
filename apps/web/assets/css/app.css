@@ -721,13 +721,16 @@
   color: #666;
 }
 
+.error-container {
+  padding: 10px 0;
+}
+
 .error-message {
   background-color: #fee;
   border: 1px solid #fcc;
   color: #c33;
   padding: 15px;
   border-radius: 4px;
-  margin: 20px 0;
 }
 
 .retry-button {

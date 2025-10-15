@@ -40,13 +40,17 @@
             Loading collection...
           </div>
         <% @search_error -> %>
-          <div class="error-message">
-            <p><strong>Error:</strong> {@search_error}</p>
-            <button phx-click="retry_search" class="retry-button">Retry</button>
+          <div class="error-container">
+            <div class="error-message">
+              <p><strong>Error:</strong> {@search_error}</p>
+              <button phx-click="retry_search" class="retry-button">Retry</button>
+            </div>
           </div>
         <% Enum.empty?(@collection_items) -> %>
-          <div class="error-message">
-            <p>No games found in this collection.</p>
+          <div class="error-container">
+            <div class="collection-header" style="color: rgb(102, 102, 102); font-size: 12px;">
+              <p>No games found in this collection.</p>
+            </div>
           </div>
         <% true -> %>
           <table class="collection">
