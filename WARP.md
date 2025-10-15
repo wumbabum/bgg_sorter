@@ -143,6 +143,11 @@ mix test          # Standard execution (preferred)
 - **Rate Limiting**: Respect BGG API limits (1 req/sec, 20 items/chunk)
 - **Memory Efficiency**: Stream large datasets, avoid loading everything into memory
 
+### Server and MCP Guidelines
+- **Phoenix Server**: Use MCP `get_logs` tool to check server logs instead of running `mix phx.server` directly
+- **MCP Server**: If MCP tools are unavailable or server/MCP server is not running, ask the user to start them
+- **Testing**: Prefer using MCP tools for database queries and code evaluation over shell commands when available
+
 ## BGG Mechanics Integration ✅ COMPLETED
 
 ### Overview

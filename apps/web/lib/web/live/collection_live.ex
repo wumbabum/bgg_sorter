@@ -248,9 +248,21 @@ defmodule Web.CollectionLive do
           socket
           |> assign(:selected_mechanics, selected_mechanics)
           |> assign(:advanced_search, advanced_search)
+          |> assign(:modal_thing_id, modal_thing_id)
           |> apply_mechanics_filtering()
           # Reset to page 1 when filtering changes
           |> assign(:current_page, 1)
+
+        # Preserve modal state if modal_thing_id is present
+        socket =
+          if modal_thing_id && modal_thing_id != "" && modal_thing_id != current_modal_thing_id do
+            socket
+            |> assign(:modal_open, true)
+            |> assign(:modal_loading, true)
+            |> tap(fn _ -> send(self(), {:load_modal_details_by_id, modal_thing_id}) end)
+          else
+            socket
+          end
 
         {:noreply, socket}
 
@@ -411,32 +423,43 @@ defmodule Web.CollectionLive do
     # Note: Mechanics filtering is now done client-side, not passed to server
 
     with {:ok, %CollectionResponse{items: basic_items}} <-
-           Core.BggGateway.collection(username, bgg_params),
-         {:ok, cached_things} <-
-           Core.BggCacher.load_things_cache(
+           Core.BggGateway.collection(username, bgg_params) do
+      
+      # First, get unfiltered cached things for client-side filtering
+      case Core.BggCacher.load_things_cache(
              basic_items,
-             client_filters,
-             socket.assigns.sort_by,
-             socket.assigns.sort_direction
+             %{}, # No filters for original data
+             :primary_name, # Default sort for original data
+             :asc
            ) do
-      Logger.info(
-        "Loaded #{length(basic_items)} basic items, got #{length(cached_things)} cached items with database filtering"
-      )
-
-      # Store the original unfiltered collection (for client-side mechanics filtering)
-      original_items = cached_things
-      Logger.info("Loaded #{length(original_items)} items from database")
-
-      socket =
-        socket
-        # Store original unfiltered data
-        |> assign(:original_collection_items, original_items)
-        |> assign(:collection_loading, false)
-        |> assign(:search_error, nil)
-        # Apply mechanics filtering client-side
-        |> apply_mechanics_filtering()
-
-      {:noreply, socket}
+        {:ok, original_items} ->
+          Logger.info(
+            "Loaded #{length(basic_items)} basic items, got #{length(original_items)} unfiltered cached items"
+          )
+          
+          # Now apply filters client-side to get the filtered results
+          socket =
+            socket
+            # Store original unfiltered data for client-side filtering
+            |> assign(:original_collection_items, original_items)
+            |> assign(:collection_loading, false)
+            |> assign(:search_error, nil)
+            # Apply all filters client-side (including mechanics)
+            |> apply_client_side_filters(client_filters)
+          
+          {:noreply, socket}
+        
+        {:error, reason} ->
+          error_message = format_error_message(reason)
+          Logger.warning("Failed to load cached things: #{inspect(reason)}")
+          
+          socket =
+            socket
+            |> assign(:collection_loading, false)
+            |> assign(:search_error, error_message)
+          
+          {:noreply, socket}
+      end
     else
       {:error, reason} ->
         error_message = format_error_message(reason)
@@ -870,6 +893,112 @@ defmodule Web.CollectionLive do
   end
 
   @impl true
+  def handle_event("immediate_filter", %{"field" => field, "value" => value}, socket) do
+    # Handle immediate filtering for form fields (except username changes) - text/number inputs format
+    username = socket.assigns.username
+    
+    apply_immediate_filter(socket, username, field, value)
+  end
+
+  @impl true
+  def handle_event("immediate_filter", params, socket) when is_map(params) do
+    # Handle immediate filtering for dropdown selects - form data format
+    username = socket.assigns.username
+    
+    # Extract field and value from form data format (e.g., %{"players" => "3", "_target" => ["players"]})
+    case Enum.find(params, fn {key, _value} -> key != "_target" end) do
+      {field, value} when is_binary(field) and is_binary(value) ->
+        apply_immediate_filter(socket, username, field, value)
+      
+      _ ->
+        Logger.warning("Unknown immediate_filter format: #{inspect(params)}")
+        {:noreply, socket}
+    end
+  end
+
+  # Common logic for applying immediate filters
+  defp apply_immediate_filter(socket, username, field, value) do
+    if username do
+      # Extract current filters and update with new field value
+      current_filters = socket.assigns.filters
+      
+      updated_filters = 
+        case field do
+          "players" ->
+            put_filter_always(current_filters, :players, value)
+          "primary_name" ->
+            put_filter_always(current_filters, :primary_name, value)
+          "playingtime" ->
+            put_filter_always(current_filters, :playingtime, value)
+          "average" ->
+            put_filter_always(current_filters, :average, value)
+          "rank" ->
+            put_filter_always(current_filters, :rank, value)
+          "description" ->
+            put_filter_always(current_filters, :description, value)
+          "averageweight_min" ->
+            put_weight_filters(current_filters, value, Map.get(current_filters, :averageweight_max))
+          "averageweight_max" ->
+            put_weight_filters(current_filters, Map.get(current_filters, :averageweight_min), value)
+          _ ->
+            current_filters
+        end
+      
+      # Determine if this field should update URL (only players dropdown should update URL)
+      should_update_url = field == "players"
+      
+      # Apply immediate filtering using client-side filtering (no database hit)
+      original_items = socket.assigns.original_collection_items
+      
+      if Enum.empty?(original_items) do
+        # No original data available - need to reload from BGG API and database
+        Logger.info("No original collection data available for immediate filter, reloading from API")
+        
+        socket =
+          socket
+          |> assign(:collection_loading, true)
+          |> assign(:search_error, nil)
+        
+        # Reload collection with new filters
+        send(self(), {:load_collection_with_filters, username, updated_filters})
+        
+        if should_update_url do
+          url = build_collection_url(username, updated_filters,
+            page: 1,
+            advanced_search: socket.assigns.advanced_search
+          )
+          {:noreply, push_patch(socket, to: url)}
+        else
+          {:noreply, socket}
+        end
+      else
+        # Use client-side filtering for instant results (no database hit)
+        Logger.info("Applied immediate filter for #{field}=#{value} using client-side filtering")
+        
+        updated_socket = 
+          socket
+          |> apply_client_side_filters(updated_filters)
+          |> assign(:current_page, 1)  # Reset to page 1 when filtering
+        
+        if should_update_url do
+          # Update URL for dropdown selections (players)
+          url = build_collection_url(username, updated_filters, 
+            page: 1, # Reset to page 1 when filtering
+            advanced_search: socket.assigns.advanced_search
+          )
+          {:noreply, push_patch(updated_socket, to: url)}
+        else
+          # For text inputs, just update the socket without changing URL
+          {:noreply, updated_socket}
+        end
+      end
+    else
+      # No username, can't filter
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("toggle_mechanic", %{"mechanic_id" => "all"}, socket) do
     # "All" toggles the mechanics expansion, doesn't clear selection
     current_expanded = Map.get(socket.assigns, :all_mechanics_expanded, false)
@@ -1180,6 +1309,12 @@ defmodule Web.CollectionLive do
   defp maybe_put_filter(filters, _key, value) when value in [nil, ""], do: filters
   defp maybe_put_filter(filters, key, value), do: Map.put(filters, key, value)
 
+  # Always put filter value (even if empty) - used for immediate filtering
+  defp put_filter_always(filters, key, value) when value in [nil, ""] do
+    Map.delete(filters, key)  # Remove empty filters instead of storing them
+  end
+  defp put_filter_always(filters, key, value), do: Map.put(filters, key, value)
+
   # Always put weight filters (even if nil/empty) and let Thing.filter_by handle defaults
   defp put_weight_filters(filters, min_weight, max_weight) do
     filters
@@ -1269,7 +1404,30 @@ defmodule Web.CollectionLive do
     end
   end
 
-  # Apply mechanics filtering to the collection client-side
+  # Apply all filters to the collection using pure client-side filtering (no database hits)
+  defp apply_client_side_filters(socket, filters) do
+    original_items = socket.assigns.original_collection_items
+    selected_mechanics = socket.assigns.selected_mechanics
+    
+    # Combine regular filters with mechanics selection
+    all_filters = Map.put(filters, :selected_mechanics, MapSet.to_list(selected_mechanics))
+    
+    # Use Thing.filter_by/2 for pure client-side filtering
+    filtered_items = Core.Schemas.Thing.filter_by(original_items, all_filters)
+    
+    # Update pagination
+    total_items = length(filtered_items)
+    current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
+    
+    socket
+    |> assign(:filters, filters)
+    |> assign(:all_collection_items, filtered_items)
+    |> assign(:collection_items, current_page_items)
+    |> assign(:total_items, total_items)
+    |> assign(:collection_loading, false)
+  end
+
+  # Apply mechanics filtering to the collection client-side (legacy function, kept for compatibility)
   defp apply_mechanics_filtering(socket) do
     original_items = socket.assigns.original_collection_items
     selected_mechanics = socket.assigns.selected_mechanics

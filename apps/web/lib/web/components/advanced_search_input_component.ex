@@ -5,6 +5,9 @@ defmodule Web.Components.AdvancedSearchInputComponent do
 
   # Text input field
   def text_input(assigns) do
+    # Add immediate filtering unless it's the username field
+    assigns = assign(assigns, :immediate_filtering, assigns[:name] != "username")
+    
     ~H"""
     <tr>
       <td width="25%" align="right"><b>{@label}</b></td>
@@ -17,6 +20,15 @@ defmodule Web.Components.AdvancedSearchInputComponent do
           value={@value || ""}
           placeholder={@placeholder || ""}
           autocomplete={assigns[:autocomplete] || "off"}
+          {if @immediate_filtering do
+            [
+              "phx-keyup": "immediate_filter",
+              "phx-debounce": "500",
+              "phx-value-field": @name
+            ]
+          else
+            []
+          end}
         />
       </td>
     </tr>
@@ -36,6 +48,9 @@ defmodule Web.Components.AdvancedSearchInputComponent do
           size="5"
           value={@min_value || ""}
           placeholder="Min"
+          phx-keyup="immediate_filter"
+          phx-debounce="500"
+          phx-value-field={"#{@name}_min"}
         />
         <span aria-hidden="true"> to </span>
         <input
@@ -45,6 +60,9 @@ defmodule Web.Components.AdvancedSearchInputComponent do
           size="5"
           value={@max_value || ""}
           placeholder="Max"
+          phx-keyup="immediate_filter"
+          phx-debounce="500"
+          phx-value-field={"#{@name}_max"}
         />
         <%= if assigns[:suffix] do %>
           <span aria-hidden="true">{@suffix}</span>
@@ -67,6 +85,9 @@ defmodule Web.Components.AdvancedSearchInputComponent do
           size="5"
           value={@value || ""}
           placeholder={@placeholder || ""}
+          phx-keyup="immediate_filter"
+          phx-debounce="500"
+          phx-value-field={@name}
         />
         <%= if assigns[:suffix] do %>
           <span aria-hidden="true">{@suffix}</span>
@@ -82,7 +103,13 @@ defmodule Web.Components.AdvancedSearchInputComponent do
     <tr>
       <td width="25%" align="right"><b>Number of Players</b></td>
       <td width="75%">
-        <select id="players-select" name="players" size="1">
+        <select 
+          id="players-select" 
+          name="players" 
+          size="1"
+          phx-change="immediate_filter"
+          phx-value-field="players"
+        >
           <option value="">Any</option>
           <option value="1" selected={@selected_players == "1"}>1</option>
           <option value="2" selected={@selected_players == "2"}>2</option>
