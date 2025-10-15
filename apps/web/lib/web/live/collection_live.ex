@@ -34,7 +34,7 @@ defmodule Web.CollectionLive do
 
     # Parse modal parameter from URL
     modal_thing_id = Map.get(params, "modal_thing_id")
-    
+
     # Parse selected mechanics from URL
     selected_mechanics = parse_selected_mechanics(params)
 
@@ -158,7 +158,7 @@ defmodule Web.CollectionLive do
 
     # Parse modal parameter from URL
     modal_thing_id = Map.get(params, "modal_thing_id")
-    
+
     # Parse selected mechanics from URL
     selected_mechanics = parse_selected_mechanics(params)
 
@@ -169,8 +169,6 @@ defmodule Web.CollectionLive do
     current_modal_thing_id = socket.assigns.modal_thing_id
     current_selected_mechanics = socket.assigns.selected_mechanics
 
-    Logger.info("🔍 MECHANICS DEBUG: URL mechanics: #{inspect(MapSet.to_list(selected_mechanics))}")
-    Logger.info("🔍 MECHANICS DEBUG: Current mechanics: #{inspect(MapSet.to_list(current_selected_mechanics))}")
 
     cond do
       # Username changed, reload collection
@@ -210,12 +208,12 @@ defmodule Web.CollectionLive do
           end
 
         send(self(), {:load_collection, username})
-        
+
         # If modal_thing_id is present, trigger modal loading
         if modal_thing_id && modal_thing_id != "" do
           send(self(), {:load_modal_details_by_id, modal_thing_id})
         end
-        
+
         {:noreply, socket}
 
       # Filters changed (but same username), try client-side filtering first
@@ -252,9 +250,9 @@ defmodule Web.CollectionLive do
           |> apply_mechanics_filtering()
           # Reset to page 1 when filtering changes
           |> assign(:current_page, 1)
-        
+
         {:noreply, socket}
-      
+
       # Sort parameters changed - reload with new database sorting
       sort_field != current_sort_field or sort_direction != current_sort_direction ->
         socket =
@@ -311,7 +309,7 @@ defmodule Web.CollectionLive do
         if modal_thing_id && modal_thing_id != "" do
           send(self(), {:load_modal_details_by_id, modal_thing_id})
         end
-        
+
         {:noreply, socket}
 
       # Same username, filters, and page, but advanced_search parameter changed
@@ -334,12 +332,12 @@ defmodule Web.CollectionLive do
     # Handle home page (no username) - check for advanced_search parameter
     advanced_search = Map.get(params, "advanced_search") == "true"
     modal_thing_id = Map.get(params, "modal_thing_id")
-    
-    socket = 
+
+    socket =
       socket
       |> assign(:advanced_search, advanced_search)
       |> assign(:modal_thing_id, modal_thing_id)
-      
+
     {:noreply, socket}
   end
 
@@ -358,9 +356,8 @@ defmodule Web.CollectionLive do
 
     # Extract client-only filters (those not supported by BGG API)
     client_filters = extract_client_only_filters(filters)
-    
+
     # Note: Mechanics filtering is now done client-side, not passed to server
-    Logger.info("🔍 MECHANICS DEBUG: Selected mechanics will be applied client-side: #{inspect(MapSet.to_list(socket.assigns.selected_mechanics))}")
 
     with {:ok, %CollectionResponse{items: basic_items}} <-
            Core.BggGateway.collection(username, bgg_params),
@@ -405,36 +402,15 @@ defmodule Web.CollectionLive do
 
   @impl true
   def handle_info({:load_modal_details_by_id, thing_id}, socket) do
-    Logger.info("🔍 MODAL DEBUG: Loading modal details for thing_id: #{inspect(thing_id)}")
-    
     # Try to parse the thing_id
     case Integer.parse(to_string(thing_id)) do
       {parsed_id, _} ->
-        Logger.info("🔍 MODAL DEBUG: Parsed thing_id as: #{parsed_id}")
         # Create a minimal thing struct to query with
         minimal_thing = %{id: to_string(parsed_id)}
-        Logger.info("🔍 MODAL DEBUG: Created minimal_thing: #{inspect(minimal_thing)}")
-        
+
         case Core.BggCacher.load_things_cache([minimal_thing]) do
           {:ok, [detailed_thing]} ->
-            Logger.info("🔍 MODAL DEBUG: Loaded detailed thing: #{inspect(detailed_thing.primary_name)}")
-            Logger.info("🔍 MODAL DEBUG: Thing mechanics raw: #{inspect(detailed_thing.mechanics)}")
-            Logger.info("🔍 MODAL DEBUG: Mechanics count: #{length(detailed_thing.mechanics || [])}")
-            Logger.info("🔍 MODAL DEBUG: Mechanics association loaded? #{inspect(!match?(%Ecto.Association.NotLoaded{}, detailed_thing.mechanics))}")
-            if detailed_thing.mechanics && length(detailed_thing.mechanics) > 0 do
-              Logger.info("🔍 MODAL DEBUG: First mechanic: #{inspect(Enum.at(detailed_thing.mechanics, 0).name)}")
-              Logger.info("🔍 MODAL DEBUG: All mechanic names: #{inspect(Enum.map(detailed_thing.mechanics, & &1.name))}")
-            end
-            
-            # Direct SQL check to verify data exists in production database
-            import Ecto.Query
-            direct_count = Core.Repo.one(
-              from tm in Core.Schemas.ThingMechanic, 
-              where: tm.thing_id == ^thing_id, 
-              select: count(tm.id)
-            )
-            Logger.info("🔍 MODAL DEBUG: Direct SQL count of mechanics for thing #{thing_id}: #{direct_count}")
-            
+
             socket =
               socket
               |> assign(:modal_loading, false)
@@ -462,7 +438,7 @@ defmodule Web.CollectionLive do
 
             {:noreply, socket}
         end
-        
+
       :error ->
         socket =
           socket
@@ -476,13 +452,13 @@ defmodule Web.CollectionLive do
   @impl true
   def handle_info({:load_modal_details, thing}, socket) do
     Logger.info("Loading modal details for thing: #{inspect(thing.primary_name)} (ID: #{thing.id})")
-    
+
     case Core.BggCacher.load_things_cache([thing]) do
       {:ok, [detailed_thing]} ->
         Logger.info("Loaded detailed thing: #{inspect(detailed_thing.primary_name)}")
         Logger.info("Thing mechanics: #{inspect(detailed_thing.mechanics)}")
         Logger.info("Mechanics count: #{length(detailed_thing.mechanics || [])}")
-        
+
         socket =
           socket
           |> assign(:modal_loading, false)
@@ -707,19 +683,19 @@ defmodule Web.CollectionLive do
           # No username case - shouldn't normally happen
           send(self(), {:load_modal_details, selected_thing})
           {:noreply, socket}
-          
+
         username ->
           filters = socket.assigns.filters
           advanced_search = socket.assigns.advanced_search
           current_page = socket.assigns.current_page
-          
+
           url =
             build_collection_url(username, filters,
               page: current_page,
               advanced_search: advanced_search,
               modal_thing_id: thing_id
             )
-          
+
           # Load detailed information for this specific thing
           send(self(), {:load_modal_details, selected_thing})
           {:noreply, push_patch(socket, to: url)}
@@ -750,21 +726,21 @@ defmodule Web.CollectionLive do
           else
             "/collection"
           end
-        
+
         {:noreply, push_patch(socket, to: url)}
-        
+
       username ->
         # Have username, build URL with all parameters except modal_thing_id
         filters = socket.assigns.filters
         advanced_search = socket.assigns.advanced_search
         current_page = socket.assigns.current_page
-        
+
         url =
           build_collection_url(username, filters,
             page: current_page,
             advanced_search: advanced_search
           )
-        
+
         {:noreply, push_patch(socket, to: url)}
     end
   end
@@ -811,16 +787,16 @@ defmodule Web.CollectionLive do
     {:noreply, socket}
   end
 
-  
+
   @impl true
   def handle_event("search_mechanics", %{"value" => query}, socket) do
     Logger.info("Searching mechanics with query: #{inspect(query)}")
-    
-    socket = 
+
+    socket =
       socket
       |> assign(:mechanics_search_query, query)
       |> assign(:mechanics_search_results, search_mechanics_by_query(query))
-    
+
     {:noreply, socket}
   end
 
@@ -829,40 +805,29 @@ defmodule Web.CollectionLive do
     # "All" toggles the mechanics expansion, doesn't clear selection
     current_expanded = Map.get(socket.assigns, :all_mechanics_expanded, false)
     new_expanded = !current_expanded
-    
-    Logger.info("🔷 ALL BUTTON: Clicked 'All' button - expanding: #{new_expanded}")
-    Logger.info("🔍 MECHANICS DEBUG: Toggling mechanics expansion: #{new_expanded}")
-    
+
+
     socket = assign(socket, :all_mechanics_expanded, new_expanded)
-    
+
     # Load popular mechanics if expanding and not already loaded
-    socket = 
+    socket =
       if new_expanded and Enum.empty?(socket.assigns.popular_mechanics) do
         Logger.info("Loading popular mechanics")
         # Set loading state first
         socket = assign(socket, :mechanics_loading, true)
-        
+
         try do
-          # First check if there are any mechanics at all
-          total_mechanics = Core.Repo.aggregate(Core.Schemas.Mechanic, :count)
-          Logger.info("🔍 MECHANICS DEBUG: Total mechanics in database: #{total_mechanics}")
-          
-          # Check if there are any thing_mechanics associations
-          total_associations = Core.Repo.aggregate(Core.Schemas.ThingMechanic, :count)
-          Logger.info("🔍 MECHANICS DEBUG: Total thing_mechanic associations: #{total_associations}")
-          
-          popular_mechanics = Core.Repo.all(Core.Schemas.Mechanic.most_popular(50))
-          Logger.info("🔍 MECHANICS DEBUG: Loaded #{length(popular_mechanics)} popular mechanics")
-          
+          # Get popular mechanics from database
+          popular_mechanics = Core.Repo.all(Core.Schemas.Mechanic.most_popular(150))
+
           # If no popular mechanics found, try loading seeded mechanics alphabetically
-          final_mechanics = 
+          final_mechanics =
             if Enum.empty?(popular_mechanics) do
-              Logger.info("🔍 MECHANICS DEBUG: No popular mechanics, loading 50 seeded mechanics alphabetically")
               Core.Repo.all(from m in Core.Schemas.Mechanic, limit: 50, order_by: m.name)
             else
               popular_mechanics
             end
-          
+
           socket
           |> assign(:popular_mechanics, final_mechanics)
           |> assign(:mechanics_loading, false)
@@ -870,13 +835,12 @@ defmodule Web.CollectionLive do
           error ->
             Logger.error("Failed to load popular mechanics: #{inspect(error)}")
             # Try to load any mechanics as fallback
-            fallback_mechanics = 
+            fallback_mechanics =
               try do
                 Core.Repo.all(from m in Core.Schemas.Mechanic, limit: 50, order_by: m.name)
               rescue
                 _ -> []
               end
-            Logger.info("🔍 MECHANICS DEBUG: Fallback loaded #{length(fallback_mechanics)} mechanics")
             socket
             |> assign(:popular_mechanics, fallback_mechanics)
             |> assign(:mechanics_loading, false)
@@ -884,54 +848,47 @@ defmodule Web.CollectionLive do
       else
         socket
       end
-    
+
     {:noreply, socket}
   end
-  
+
   @impl true
   def handle_event("toggle_mechanic", %{"mechanic_id" => mechanic_id}, socket) do
-    Logger.info("🔍 MECHANICS DEBUG: Mechanic toggled: #{inspect(mechanic_id)}")
-    
     # Toggle mechanic in selected_mechanics set
     current_selected = socket.assigns.selected_mechanics
-    Logger.info("🔍 MECHANICS DEBUG: Current selected: #{inspect(MapSet.to_list(current_selected))}")
-    
-    new_selected = 
+
+    new_selected =
       if MapSet.member?(current_selected, mechanic_id) do
-        Logger.info("🔍 MECHANICS DEBUG: Removing mechanic #{mechanic_id}")
         MapSet.delete(current_selected, mechanic_id)
       else
-        Logger.info("🔍 MECHANICS DEBUG: Adding mechanic #{mechanic_id}")
         MapSet.put(current_selected, mechanic_id)
       end
-    
-    Logger.info("🔍 MECHANICS DEBUG: New selected: #{inspect(MapSet.to_list(new_selected))}")
-    
-    socket = 
+
+    socket =
       socket
       |> assign(:selected_mechanics, new_selected)
       |> apply_mechanics_filtering()
       |> assign(:current_page, 1)  # Reset to page 1 when filtering changes
-    
+
     # Update URL to include selected mechanics - build new URL with mechanics parameter
     case socket.assigns.username do
       nil ->
         {:noreply, socket}
-        
+
       username ->
         filters = socket.assigns.filters
         advanced_search = socket.assigns.advanced_search
         sort_field = socket.assigns.sort_by
         sort_direction = socket.assigns.sort_direction
         modal_thing_id = socket.assigns.modal_thing_id
-        
+
         url = build_collection_url_with_mechanics(
           username, filters, sort_field, sort_direction, new_selected,
           page: 1,  # Always reset to page 1 when filtering
           advanced_search: advanced_search,
           modal_thing_id: modal_thing_id
         )
-        
+
         {:noreply, push_patch(socket, to: url)}
     end
   end
@@ -1108,22 +1065,22 @@ defmodule Web.CollectionLive do
     |> Map.put(:averageweight_min, min_weight)
     |> Map.put(:averageweight_max, max_weight)
   end
-  
+
   # Put mechanics filters from comma-separated string or MapSet
   defp put_mechanics_filters(filters, mechanics_str) when is_binary(mechanics_str) and mechanics_str != "" do
-    mechanic_ids = 
+    mechanic_ids =
       mechanics_str
       |> String.split(",")
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
-    
+
     if Enum.empty?(mechanic_ids) do
       filters
     else
       Map.put(filters, :selected_mechanics, mechanic_ids)
     end
   end
-  
+
   # Handle MapSet from selected_mechanics state
   defp put_mechanics_filters(filters, %MapSet{} = mechanics_set) do
     mechanic_ids = MapSet.to_list(mechanics_set)
@@ -1133,9 +1090,9 @@ defmodule Web.CollectionLive do
       Map.put(filters, :selected_mechanics, mechanic_ids)
     end
   end
-  
+
   defp put_mechanics_filters(filters, _), do: filters
-  
+
   # Search mechanics by name query
   defp search_mechanics_by_query(query) when is_binary(query) and query != "" do
     trimmed_query = String.trim(query)
@@ -1151,15 +1108,15 @@ defmodule Web.CollectionLive do
       []
     end
   end
-  
+
   defp search_mechanics_by_query(_), do: []
-  
+
   # Parse selected mechanics from URL parameters
   defp parse_selected_mechanics(params) do
     case Map.get(params, "mechanics") do
       mechanics_str when is_binary(mechanics_str) and mechanics_str != "" ->
         Logger.info("Parsing mechanics from URL: #{inspect(mechanics_str)}")
-        selected = 
+        selected =
           mechanics_str
           |> String.split(",")
           |> Enum.map(&String.trim/1)
@@ -1167,12 +1124,12 @@ defmodule Web.CollectionLive do
           |> MapSet.new()
         Logger.info("Parsed selected mechanics: #{inspect(MapSet.to_list(selected))}")
         selected
-        
+
       _ ->
         MapSet.new()
     end
   end
-  
+
   # Encode selected mechanics for URL
   defp encode_selected_mechanics(%MapSet{} = selected_mechanics) do
     mechanics_list = MapSet.to_list(selected_mechanics)
@@ -1182,46 +1139,36 @@ defmodule Web.CollectionLive do
       Enum.join(mechanics_list, ",")
     end
   end
-  
+
   # Apply mechanics filtering to the collection client-side
   defp apply_mechanics_filtering(socket) do
     original_items = socket.assigns.original_collection_items
     selected_mechanics = socket.assigns.selected_mechanics
-    
-    Logger.info("🔍 MECHANICS DEBUG: Applying client-side filtering to #{length(original_items)} items")
-    Logger.info("🔍 MECHANICS DEBUG: Selected mechanics: #{inspect(MapSet.to_list(selected_mechanics))}")
-    
-    filtered_items = 
+
+
+    filtered_items =
       if MapSet.size(selected_mechanics) == 0 do
         # No mechanics filter - show all items
-        Logger.info("🔍 MECHANICS DEBUG: No mechanics selected, showing all items")
         original_items
       else
         # Filter items that have ALL selected mechanics
         mechanic_ids = MapSet.to_list(selected_mechanics)
-        Logger.info("🔍 MECHANICS DEBUG: Filtering for mechanic IDs: #{inspect(mechanic_ids)}")
-        
+
         Enum.filter(original_items, fn item ->
           if item.mechanics do
             item_mechanic_ids = Enum.map(item.mechanics, & &1.id)
-            has_all = Enum.all?(mechanic_ids, fn id -> id in item_mechanic_ids end)
-            if has_all do
-              Logger.debug("🔍 #{item.primary_name} has all required mechanics")
-            end
-            has_all
+            Enum.all?(mechanic_ids, fn id -> id in item_mechanic_ids end)
           else
             # Item has no mechanics loaded, can't match
             false
           end
         end)
       end
-    
-    Logger.info("🔍 MECHANICS DEBUG: Filtered to #{length(filtered_items)} items")
-    
+
     # Update the filtered collection and pagination
     total_items = length(filtered_items)
     current_page_items = get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
-    
+
     socket
     |> assign(:all_collection_items, filtered_items)
     |> assign(:collection_items, current_page_items)
@@ -1351,7 +1298,7 @@ defmodule Web.CollectionLive do
     end
   end
 
-  # Helper function to build URL with filter and sort query parameters  
+  # Helper function to build URL with filter and sort query parameters
   defp build_collection_url_with_sort(username, filters, sort_field, sort_direction, opts) do
     base_path = "/collection/#{username}"
 
@@ -1400,8 +1347,8 @@ defmodule Web.CollectionLive do
       "#{base_path}?#{query_string}"
     end
   end
-  
-  # Helper function to build URL with filter, sort, and mechanics query parameters  
+
+  # Helper function to build URL with filter, sort, and mechanics query parameters
   defp build_collection_url_with_mechanics(username, filters, sort_field, sort_direction, selected_mechanics, opts) do
     base_path = "/collection/#{username}"
 
@@ -1417,7 +1364,7 @@ defmodule Web.CollectionLive do
       query_params
       |> Map.put("sort_by", Atom.to_string(sort_field))
       |> Map.put("sort_direction", Atom.to_string(sort_direction))
-      
+
     # Add mechanics parameter if any mechanics selected
     query_params =
       if MapSet.size(selected_mechanics) > 0 do

@@ -28,15 +28,13 @@ defmodule Core.BggCacher do
       when is_list(things) do
     # Extract Thing IDs from input list
     thing_ids = Enum.map(things, & &1.id)
-    Logger.info("🔍 CACHER ENTRY: Loading #{length(thing_ids)} things from cache")
-    Logger.info("🔍 CACHER ENTRY: Thing IDs: #{inspect(thing_ids)}")
-    Logger.info("🔍 CACHER ENTRY: Filters: #{inspect(filters)}")
+    Logger.debug("Loading #{length(thing_ids)} things from cache")
 
     with {:ok, stale_ids} <- get_stale_thing_ids(thing_ids),
          {:ok, _updated_things} <- update_stale_things(stale_ids),
          {:ok, cached_things} <-
            get_all_cached_things(thing_ids, filters, sort_field, sort_direction) do
-      Logger.info("🔍 CACHER ENTRY: Successfully loaded #{length(cached_things)} things")
+      Logger.debug("Successfully loaded #{length(cached_things)} things")
       {:ok, cached_things}
     end
   end
@@ -78,9 +76,7 @@ defmodule Core.BggCacher do
 
       all_stale_ids = (stale_ids ++ missing_ids) |> Enum.uniq()
 
-      Logger.info("🔍 CACHER STALE: Found #{length(stale_ids)} stale IDs, #{length(missing_ids)} missing IDs")
-      Logger.info("🔍 CACHER STALE: Total stale/missing IDs to update: #{length(all_stale_ids)}")
-      Logger.info("🔍 CACHER STALE: IDs: #{inspect(all_stale_ids)}")
+      Logger.debug("Found #{length(all_stale_ids)} stale/missing IDs to update")
 
       {:ok, all_stale_ids}
     rescue
@@ -97,8 +93,7 @@ defmodule Core.BggCacher do
   def update_stale_things([]), do: {:ok, []}
 
   def update_stale_things(thing_ids) when is_list(thing_ids) do
-    start_time = System.monotonic_time(:millisecond)
-    Logger.info("🕰️ CACHER TIMING: Starting update of #{length(thing_ids)} stale things")
+    Logger.info("Updating #{length(thing_ids)} stale things from BGG API")
 
     # Chunk into groups of 20 (BGG API limit)
     chunks = Enum.chunk_every(thing_ids, 20)
@@ -108,44 +103,30 @@ defmodule Core.BggCacher do
         chunks
         |> Enum.with_index()
         |> Enum.reduce([], fn {chunk, index}, acc ->
-          chunk_start = System.monotonic_time(:millisecond)
-          Logger.info(
-            "🕰️ CACHER TIMING: Processing chunk #{index + 1}/#{length(chunks)} with #{length(chunk)} items"
+          Logger.debug(
+            "Processing chunk #{index + 1}/#{length(chunks)} with #{length(chunk)} items"
           )
 
           case update_chunk(chunk) do
             {:ok, chunk_things} ->
-              chunk_duration = System.monotonic_time(:millisecond) - chunk_start
-              Logger.info("🕰️ CACHER TIMING: Chunk #{index + 1} completed in #{chunk_duration}ms")
-              
               # Rate limiting delay between chunks (except for the last one)
               if index < length(chunks) - 1 do
-                Logger.info("🕰️ CACHER TIMING: Sleeping #{@rate_limit_delay_ms}ms for rate limiting")
-                sleep_start = System.monotonic_time(:millisecond)
                 :timer.sleep(@rate_limit_delay_ms)
-                sleep_duration = System.monotonic_time(:millisecond) - sleep_start
-                Logger.info("🕰️ CACHER TIMING: Sleep completed in #{sleep_duration}ms")
               end
 
               acc ++ chunk_things
 
             {:error, reason} ->
-              chunk_duration = System.monotonic_time(:millisecond) - chunk_start
-              Logger.warning("🕰️ CACHER TIMING: Chunk #{index + 1} failed in #{chunk_duration}ms: #{inspect(reason)}")
+              Logger.warning("Failed to update chunk #{index + 1}: #{inspect(reason)}")
               # Continue with other chunks on failure
               acc
           end
         end)
 
-      total_duration = System.monotonic_time(:millisecond) - start_time
-      Logger.info("🕰️ CACHER TIMING: Total update completed in #{total_duration}ms (#{Float.round(total_duration/1000, 1)}s)")
-      Logger.info("🕰️ CACHER TIMING: Average per chunk: #{Float.round(total_duration/length(chunks), 1)}ms")
-      
       {:ok, updated_things}
     rescue
       error ->
-        total_duration = System.monotonic_time(:millisecond) - start_time
-        Logger.error("🕰️ CACHER TIMING: Failed to update stale things after #{total_duration}ms: #{inspect(error)}")
+        Logger.error("Failed to update stale things: #{inspect(error)}")
         {:error, :api_error}
     end
   end
@@ -171,14 +152,6 @@ defmodule Core.BggCacher do
         |> with_filters(filters)
         |> with_sorting(sort_field, sort_direction)
         |> Core.Repo.all()
-      
-      # Debug mechanics loading
-      Enum.each(cached_things, fn thing ->
-        Logger.info("🔍 CACHER DEBUG: Thing #{thing.id} (#{thing.primary_name}) has #{length(thing.mechanics || [])} mechanics")
-        if thing.mechanics && length(thing.mechanics) > 0 do
-          Logger.info("🔍 CACHER DEBUG: First mechanic: #{Enum.at(thing.mechanics, 0).name}")
-        end
-      end)
 
       {:ok, cached_things}
     rescue
@@ -190,30 +163,9 @@ defmodule Core.BggCacher do
 
   # Private function to update a single chunk of thing IDs
   defp update_chunk(chunk_ids) do
-    Logger.info("🔍 CACHER CHUNK: Updating chunk with IDs: #{inspect(chunk_ids)}")
-    
-    with {:ok, things} <- BggGateway.things(chunk_ids) do
-      Logger.info("🔍 CACHER CHUNK: BGG API returned #{length(things)} things")
-      
-      # Log mechanics data for each thing
-      Enum.each(things, fn thing ->
-        raw_mechanics = Map.get(thing, :raw_mechanics, [])
-        Logger.info("🔍 CACHER CHUNK: Thing #{thing.id} (#{thing.primary_name}) has #{length(raw_mechanics)} raw mechanics")
-        if length(raw_mechanics) > 0 do
-          Logger.info("🔍 CACHER CHUNK: Thing #{thing.id} mechanics: #{inspect(Enum.take(raw_mechanics, 3))}#{if length(raw_mechanics) > 3, do: "...", else: ""}")
-        end
-      end)
-      
-      case upsert_things_batch(things) do
-        {:ok, upserted_things} -> {:ok, upserted_things}
-        error -> 
-          Logger.error("🔍 CACHER CHUNK: Failed to upsert batch: #{inspect(error)}")
-          error
-      end
-    else
-      error ->
-        Logger.error("🔍 CACHER CHUNK: BGG API call failed: #{inspect(error)}")
-        error
+    with {:ok, things} <- BggGateway.things(chunk_ids),
+         {:ok, upserted_things} <- upsert_things_batch(things) do
+      {:ok, upserted_things}
     end
   end
 
@@ -466,33 +418,26 @@ defmodule Core.BggCacher do
 
   # Private function to upsert a batch of things
   defp upsert_things_batch(things) when is_list(things) do
-    Logger.info("🔍 CACHER BATCH: Starting upsert for #{length(things)} things")
-    
     try do
       upserted_things =
         things
-        |> Enum.with_index()
-        |> Enum.map(fn {thing, index} ->
-          Logger.info("🔍 CACHER BATCH: Processing thing #{index + 1}/#{length(things)}: #{thing.id} (#{Map.get(thing, :primary_name, "Unknown")})}")
-          
+        |> Enum.map(fn thing ->
           case Thing.upsert_thing(thing) do
             {:ok, upserted_thing} ->
-              Logger.info("🔍 CACHER BATCH: Successfully upserted thing #{thing.id}")
               upserted_thing
 
             {:error, changeset} ->
-              Logger.warning("🔍 CACHER BATCH: Failed to upsert thing #{thing.id}: #{inspect(changeset.errors)}")
+              Logger.warning("Failed to upsert thing #{thing.id}: #{inspect(changeset.errors)}")
               nil
           end
         end)
         # Remove nil entries
         |> Enum.filter(& &1)
 
-      Logger.info("🔍 CACHER BATCH: Completed batch upsert - #{length(upserted_things)}/#{length(things)} successful")
       {:ok, upserted_things}
     rescue
       error ->
-        Logger.error("🔍 CACHER BATCH: Failed to batch upsert things: #{inspect(error)}")
+        Logger.error("Failed to batch upsert things: #{inspect(error)}")
         {:error, :database_error}
     end
   end
