@@ -1211,6 +1211,13 @@ defmodule Web.CollectionLive do
   defp format_error_message(:user_not_found), do: "User not found"
   defp format_error_message(:network_error), do: "Network error - please try again"
   defp format_error_message(:timeout), do: "Request timed out - please try again"
+
+  defp format_error_message(:max_retries_exceeded),
+    do: "BGG servers are currently unavailable. Please try again in a few minutes."
+
+  defp format_error_message(:not_found),
+    do: "Collection not found. Please check the username and try again."
+
   defp format_error_message(reason) when is_binary(reason), do: reason
 
   defp format_error_message({:invalid_collection_request, errors}) do
