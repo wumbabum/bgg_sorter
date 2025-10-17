@@ -6,30 +6,44 @@ defmodule Core.Schemas.CollectionResponse do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Core.Schemas.Thing
-
   @type t :: %__MODULE__{
-          totalitems: String.t() | nil,
-          termsofuse: String.t() | nil,
-          items: [Thing.t()]
+          items: [map()]
         }
 
   @primary_key false
   embedded_schema do
-    field :totalitems, :string
-    field :termsofuse, :string
-    embeds_many :items, Thing
+    field :items, {:array, :map}
   end
 
   @required_fields ~w()a
-  @optional_fields ~w(totalitems termsofuse)a
+  @optional_fields ~w(items)a
 
   @doc "Generates a changeset for the CollectionResponse schema."
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(collection \\ %__MODULE__{}, params) do
     collection
     |> cast(params, @required_fields ++ @optional_fields)
-    |> cast_embed(:items, with: &Thing.changeset/2)
     |> validate_required(@required_fields)
+    |> validate_items()
+  end
+
+  # Custom validation for items as maps
+  defp validate_items(changeset) do
+    case get_change(changeset, :items) do
+      items when is_list(items) ->
+        invalid_items =
+          Enum.filter(items, fn item ->
+            not (is_map(item) and Map.has_key?(item, :id) and Map.has_key?(item, :type))
+          end)
+
+        if length(invalid_items) > 0 do
+          add_error(changeset, :items, "contains invalid items: #{inspect(invalid_items)}")
+        else
+          changeset
+        end
+
+      _ ->
+        changeset
+    end
   end
 end

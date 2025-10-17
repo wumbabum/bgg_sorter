@@ -137,9 +137,9 @@ defmodule Core.BggCacher do
           {:ok, [Thing.t()]} | {:error, atom()}
   defp get_all_cached_things(
          thing_ids,
-         filters \\ %{},
-         sort_field \\ :primary_name,
-         sort_direction \\ :asc
+         filters,
+         sort_field,
+         sort_direction
        )
        when is_list(thing_ids) do
     try do

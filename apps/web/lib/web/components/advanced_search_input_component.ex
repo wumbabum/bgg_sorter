@@ -7,7 +7,7 @@ defmodule Web.Components.AdvancedSearchInputComponent do
   def text_input(assigns) do
     # Add immediate filtering unless it's the username field
     assigns = assign(assigns, :immediate_filtering, assigns[:name] != "username")
-    
+
     ~H"""
     <tr>
       <td width="25%" align="right"><b>{@label}</b></td>
@@ -103,9 +103,9 @@ defmodule Web.Components.AdvancedSearchInputComponent do
     <tr>
       <td width="25%" align="right"><b>Number of Players</b></td>
       <td width="75%">
-        <select 
-          id="players-select" 
-          name="players" 
+        <select
+          id="players-select"
+          name="players"
           size="1"
           phx-change="immediate_filter"
           phx-value-field="players"

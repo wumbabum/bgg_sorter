@@ -39,9 +39,9 @@ defmodule Web.Components.HeaderComponent do
                 autocorrect="off"
                 spellcheck="false"
               />
-              <button 
-                type="submit" 
-                class="search-button" 
+              <button
+                type="submit"
+                class="search-button"
                 aria-label="Search"
                 onclick="handleMobileSearch(event, this)"
               >

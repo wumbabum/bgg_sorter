@@ -68,26 +68,31 @@ defmodule Core.BggGateway do
   end
 
   defp extract_collection_data(xml_body) do
-    collection_data =
-      xml_body
-      |> xmap(
-        totalitems: ~x"//items/@totalitems"s,
-        termsofuse: ~x"//items/@termsofuse"s,
-        items: [
-          ~x"//items/item"l,
-          id: ~x"./@objectid"s,
-          type: ~x"./@objecttype"s,
-          subtype: ~x"./@subtype"s,
-          primary_name: ~x"./name/text()"s,
-          yearpublished: ~x"./yearpublished/text()"so
-        ]
-      )
+    collection_data = %{
+      items:
+        xml_body
+        |> xmap(
+          items: [
+            ~x"//items/item"l,
+            id: ~x"./@objectid"s,
+            type: ~x"./@objecttype"s,
+            subtype: ~x"./@subtype"s,
+            primary_name: ~x"./name/text()"s,
+            yearpublished: ~x"./yearpublished/text()"so
+          ]
+        )
+        |> Map.get(:items)
+    }
 
     {:ok, collection_data}
   rescue
-    _error -> {:error, :failed_to_extract_collection_data}
+    error ->
+      Logger.error("Failed to extract collection data: #{inspect(error)}")
+      {:error, :failed_to_extract_collection_data}
   catch
-    :exit, _ -> {:error, :failed_to_extract_collection_data}
+    :exit, reason ->
+      Logger.error("Exit during collection data extraction: #{inspect(reason)}")
+      {:error, :failed_to_extract_collection_data}
   end
 
   defp cast_collection(collection_data) do
@@ -96,6 +101,10 @@ defmodule Core.BggGateway do
         {:ok, Ecto.Changeset.apply_changes(changeset)}
 
       %Ecto.Changeset{valid?: false} ->
+        Logger.error(
+          "Collection validation failed for #{length(Map.get(collection_data, :items, []))} items"
+        )
+
         {:error, :invalid_collection_data}
     end
   end

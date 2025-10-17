@@ -72,7 +72,8 @@ defmodule Core.Schemas.Thing do
     timestamps(type: :utc_datetime)
   end
 
-  @required_fields ~w(id type schema_version)a
+  @required_fields ~w(id type)a
+  @database_required_fields ~w(id type schema_version)a
   @optional_fields ~w(subtype thumbnail image primary_name description yearpublished minplayers maxplayers playingtime minplaytime maxplaytime minage usersrated average bayesaverage rank owned averageweight mechanics_checksum last_cached)a
 
   @doc "Generates a changeset for the Thing schema."
@@ -81,6 +82,26 @@ defmodule Core.Schemas.Thing do
     thing
     |> cast(params, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
+  end
+
+  @doc "Generates a changeset for database operations with schema_version required."
+  @spec database_changeset(t(), map()) :: Ecto.Changeset.t()
+  def database_changeset(thing \\ %__MODULE__{}, params) do
+    thing
+    |> cast(params, @database_required_fields ++ @optional_fields)
+    |> validate_required(@database_required_fields)
+  end
+
+  @doc "Generates a changeset for parsing-only operations without database validations."
+  @spec parsing_changeset(t(), map()) :: Ecto.Changeset.t()
+  def parsing_changeset(thing \\ %__MODULE__{}, params) do
+    changeset =
+      thing
+      |> cast(params, @required_fields ++ @optional_fields)
+      |> validate_required(@required_fields)
+
+    # Set action to nil to avoid database validations
+    %{changeset | action: nil}
   end
 
   @doc "Upserts a thing record in the database."
@@ -117,7 +138,7 @@ defmodule Core.Schemas.Thing do
 
     # Don't set mechanics_checksum yet - we'll do that after processing mechanics
 
-    changeset = changeset(%__MODULE__{}, params_with_timestamp)
+    changeset = database_changeset(%__MODULE__{}, params_with_timestamp)
 
     case changeset.valid? do
       true ->
@@ -439,7 +460,7 @@ defmodule Core.Schemas.Thing do
       |> Ecto.Multi.insert_all(:insert_new, ThingMechanic, thing_mechanic_records)
       |> Ecto.Multi.update(
         :update_checksum,
-        changeset(thing, %{mechanics_checksum: new_checksum})
+        database_changeset(thing, %{mechanics_checksum: new_checksum})
       )
       |> Core.Repo.transaction()
 

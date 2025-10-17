@@ -1789,7 +1789,7 @@ end
 **Query Updates**:
 ```elixir
 # BggCacher queries
-def get_all_cached_things(thing_ids, filters \\ %{}, sort_field \\ :primary_name, sort_direction \\ :asc) do
+def get_all_cached_things(thing_ids, filters, sort_field, sort_direction) do
   query = from t in Thing,
           where: t.id in ^thing_ids,
           preload: [:mechanics]  # Add preloading

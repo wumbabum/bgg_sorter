@@ -51,7 +51,7 @@ defmodule Core.BggGateway.ReqClient do
     opts = [params: params, headers: headers] ++ req_options()
 
     case Req.get(url, opts) do
-      {:ok, response} = result ->
+      {:ok, _response} = result ->
         result
 
       {:error, reason} = error ->
