@@ -72,12 +72,14 @@ defmodule Web.MixProject do
     [
       setup: ["deps.get", "assets.setup", "assets.build"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind web", "esbuild web"],
+      "assets.build": ["compile", "tailwind web", "esbuild web", "assets.copy_static"],
       "assets.deploy": [
         "tailwind web --minify",
         "esbuild web --minify",
+        "assets.copy_static",
         "phx.digest"
-      ]
+      ],
+      "assets.copy_static": ["cmd cp -r assets/static/. priv/static/"]
     ]
   end
 end
