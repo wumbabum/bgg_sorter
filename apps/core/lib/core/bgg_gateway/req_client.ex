@@ -103,11 +103,19 @@ defmodule Core.BggGateway.ReqClient do
   defp req_options do
     # BGG API requires retry logic due to rate limiting and service issues
     [
-      retry: :transient,
+      retry: &should_retry?/1,
       max_retries: 3,
+      retry_delay: fn attempt -> attempt * 2000 end,
       receive_timeout: 30_000
     ]
   end
+
+  # Custom retry logic for BGG API quirks
+  defp should_retry?({:ok, %Req.Response{status: 202}}), do: true
+  defp should_retry?({:ok, %Req.Response{status: 429}}), do: true
+  defp should_retry?({:ok, %Req.Response{status: status}}) when status >= 500, do: true
+  defp should_retry?({:error, %Req.TransportError{}}), do: true
+  defp should_retry?(_), do: false
 
   # Redacts sensitive headers for logging
   defp redact_auth_headers(headers) when is_map(headers) do

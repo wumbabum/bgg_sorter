@@ -864,13 +864,34 @@
 }
 
 /* Loading and error states */
-.loading-spinner {
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  padding: 40px 20px;
+}
+
+.loading-svg-wrapper {
+  padding: 20px;
+  border-radius: 8px;
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 200px;
-  font-size: 18px;
+}
+
+.loading-svg {
+  width: 80px;
+  height: 80px;
+  display: block;
+}
+
+.loading-text {
+  margin-top: 20px;
+  font-size: 16px;
   color: #666;
+  text-align: center;
 }
 
 .error-container {
