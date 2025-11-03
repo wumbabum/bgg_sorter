@@ -14,13 +14,15 @@ defmodule Core.BggGateway do
   @spec collection(String.t(), keyword()) ::
           {:ok, CollectionResponse.t()} | {:error, Exception.t()}
   def collection(username, opts \\ []) do
-    collection_with_retry(username, opts, 1)
+    attempt = Keyword.get(opts, :attempt, 1)
+    collection_with_retry(username, opts, attempt)
   end
 
   # Private function to handle collection requests with retry logic
   defp collection_with_retry(username, opts, attempt) when attempt <= 3 do
     request_params =
       opts
+      |> Keyword.delete(:attempt)
       |> Keyword.put(:username, to_string(username))
       |> Enum.into(%{})
 
@@ -49,6 +51,7 @@ defmodule Core.BggGateway do
 
       {:ok, %Req.Response{status: status} = response} ->
         Logger.error("BGG request failed with status: #{status}, body: #{response.body}")
+        Logger.error("Full req response: #{inspect(response)}")
         {:error, :not_found}
 
       {:error, reason} when attempt < 3 ->
@@ -153,6 +156,7 @@ defmodule Core.BggGateway do
       |> Enum.into(%{})
       |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
       |> Enum.into(%{})
+
     url = "#{@base_url}/thing"
     headers = collection_headers()
 

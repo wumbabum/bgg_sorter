@@ -8,7 +8,8 @@ defmodule BggSorter.MixProject do
       start_permanent: Mix.env() == :prod,
       releases: releases(),
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+      apps: [:core, :web]
     ]
   end
 

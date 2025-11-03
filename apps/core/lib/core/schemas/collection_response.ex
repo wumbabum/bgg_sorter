@@ -33,7 +33,11 @@ defmodule Core.Schemas.CollectionResponse do
       items when is_list(items) ->
         invalid_items =
           Enum.filter(items, fn item ->
-            not (is_map(item) and Map.has_key?(item, :id) and Map.has_key?(item, :type))
+            not (is_map(item) and
+                   Map.has_key?(item, :id) and
+                   Map.has_key?(item, :type) and
+                   Map.get(item, :id) != "" and
+                   Map.get(item, :type) != "")
           end)
 
         if length(invalid_items) > 0 do
