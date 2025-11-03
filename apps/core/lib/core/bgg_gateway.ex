@@ -14,15 +14,8 @@ defmodule Core.BggGateway do
   @spec collection(String.t(), keyword()) ::
           {:ok, CollectionResponse.t()} | {:error, Exception.t()}
   def collection(username, opts \\ []) do
-    attempt = Keyword.get(opts, :attempt, 1)
-    collection_with_retry(username, opts, attempt)
-  end
-
-  # Private function to handle collection requests with retry logic
-  defp collection_with_retry(username, opts, attempt) when attempt <= 3 do
     request_params =
       opts
-      |> Keyword.delete(:attempt)
       |> Keyword.put(:username, to_string(username))
       |> Enum.into(%{})
 
@@ -30,7 +23,7 @@ defmodule Core.BggGateway do
 
     with {:ok, validated_params} <- cast_collection_request(request_params),
          Logger.info(
-           "Fetching collection for #{username} (attempt #{attempt}/3) with params: #{inspect(validated_params)}"
+           "Fetching collection for #{username} with params: #{inspect(validated_params)}"
          ),
          headers <- collection_headers(),
          {:ok, %Req.Response{status: 200} = response} <-
@@ -38,43 +31,14 @@ defmodule Core.BggGateway do
          {:ok, collection} <- parse_xml_response(response.body) do
       {:ok, collection}
     else
-      {:ok, %Req.Response{status: status} = response} when status in [202, 503] and attempt < 3 ->
-        # BGG server unavailable/processing, retry with exponential backoff
-        delay_ms = (:math.pow(2, attempt) * 1000) |> round()
-
-        Logger.warning(
-          "BGG server unavailable (status #{status}), body: #{String.slice(response.body, 0, 200)}, retrying in #{delay_ms}ms (attempt #{attempt}/3)"
-        )
-
-        :timer.sleep(delay_ms)
-        collection_with_retry(username, opts, attempt + 1)
-
       {:ok, %Req.Response{status: status} = response} ->
-        Logger.error("BGG request failed with status: #{status}, body: #{response.body}")
-        Logger.error("Full req response: #{inspect(response)}")
+        Logger.error("BGG request failed with status: #{status}, body: #{String.slice(response.body, 0, 200)}")
         {:error, :not_found}
 
-      {:error, reason} when attempt < 3 ->
-        # Network error, retry with exponential backoff
-        delay_ms = (:math.pow(2, attempt) * 1000) |> round()
-
-        Logger.warning(
-          "HTTP request failed: #{inspect(reason)}, retrying in #{delay_ms}ms (attempt #{attempt}/3)"
-        )
-
-        :timer.sleep(delay_ms)
-        collection_with_retry(username, opts, attempt + 1)
-
       {:error, reason} ->
-        Logger.error("HTTP request failed after 3 attempts: #{inspect(reason)}")
+        Logger.error("HTTP request failed: #{inspect(reason)}")
         {:error, reason}
     end
-  end
-
-  # Max retries reached
-  defp collection_with_retry(_username, _opts, attempt) when attempt > 3 do
-    Logger.error("Collection request failed after maximum retries")
-    {:error, :max_retries_exceeded}
   end
 
   defp parse_xml_response(xml_body) do

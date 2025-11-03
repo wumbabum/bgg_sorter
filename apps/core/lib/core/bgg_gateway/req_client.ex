@@ -44,8 +44,10 @@ defmodule Core.BggGateway.ReqClient do
   @doc "Makes a GET request to the specified URL."
   @impl Behaviour
   def get(url, params, headers) do
+    redacted_headers = redact_auth_headers(headers)
+
     Logger.info(
-      "Making GET request with args: #{inspect(%{url: url, params: params, headers: headers})}"
+      "Making GET request with args: #{inspect(%{url: url, params: params, headers: redacted_headers})}"
     )
 
     opts = [params: params, headers: headers] ++ req_options()
@@ -102,12 +104,22 @@ defmodule Core.BggGateway.ReqClient do
     # BGG API requires retry logic due to rate limiting and service issues
     [
       retry: :transient,
-      retry_delay: fn attempt ->
-        delay = min(1000 * :math.pow(2, attempt - 1), 10_000)
-        trunc(delay)
-      end,
       max_retries: 3,
       receive_timeout: 30_000
     ]
   end
+
+  # Redacts sensitive headers for logging
+  defp redact_auth_headers(headers) when is_map(headers) do
+    Map.update(headers, "Authorization", nil, fn _ -> "[REDACTED]" end)
+  end
+
+  defp redact_auth_headers(headers) when is_list(headers) do
+    Enum.map(headers, fn
+      {"Authorization", _} -> {"Authorization", "[REDACTED]"}
+      other -> other
+    end)
+  end
+
+  defp redact_auth_headers(headers), do: headers
 end

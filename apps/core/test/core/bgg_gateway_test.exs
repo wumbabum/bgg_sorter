@@ -90,7 +90,7 @@ defmodule Core.BggGatewayTest do
          }}
       end)
 
-      assert {:error, reason} = BggGateway.collection(non_existent_user, attempt: 3)
+      assert {:error, reason} = BggGateway.collection(non_existent_user)
       # BGG returns error XML with specific error message
       assert reason == "BGG API error: Invalid username specified"
     end
@@ -109,7 +109,7 @@ defmodule Core.BggGatewayTest do
       end)
 
       assert {:error, %RuntimeError{message: "Connection timeout"}} =
-               BggGateway.collection("testuser", attempt: 3)
+               BggGateway.collection("testuser")
     end
 
     test "returns :failed_to_parse_xml for malformed XML" do
@@ -117,7 +117,7 @@ defmodule Core.BggGatewayTest do
         {:ok, %Req.Response{status: 200, body: "not xml at all"}}
       end)
 
-      assert {:error, :failed_to_parse_xml} = BggGateway.collection("testuser", attempt: 3)
+      assert {:error, :failed_to_parse_xml} = BggGateway.collection("testuser")
     end
 
     test "returns :invalid_collection_data when changeset validation fails" do
@@ -139,7 +139,7 @@ defmodule Core.BggGatewayTest do
       end)
 
       # This should fail because objectid, objecttype are required but missing
-      assert {:error, :invalid_collection_data} = BggGateway.collection("testuser", attempt: 3)
+      assert {:error, :invalid_collection_data} = BggGateway.collection("testuser")
     end
 
     test "accepts valid collection request parameters" do
@@ -193,19 +193,19 @@ defmodule Core.BggGatewayTest do
     test "returns error for invalid collection request parameters" do
       # Invalid minbggrating value (must be 1-10)
       assert {:error, {:invalid_collection_request, errors}} =
-               BggGateway.collection("testuser", minbggrating: 15, attempt: 3)
+               BggGateway.collection("testuser", minbggrating: 15)
 
       assert Keyword.has_key?(errors, :minbggrating)
 
       # Invalid wishlistpriority (must be 1-5)
       assert {:error, {:invalid_collection_request, errors}} =
-               BggGateway.collection("testuser", wishlistpriority: 10, attempt: 3)
+               BggGateway.collection("testuser", wishlistpriority: 10)
 
       assert Keyword.has_key?(errors, :wishlistpriority)
 
       # Invalid date format
       assert {:error, {:invalid_collection_request, errors}} =
-               BggGateway.collection("testuser", modifiedsince: "invalid-date", attempt: 3)
+               BggGateway.collection("testuser", modifiedsince: "invalid-date")
 
       assert Keyword.has_key?(errors, :modifiedsince)
     end
