@@ -16,22 +16,29 @@ defmodule Core.BggCacher do
   @doc """
   Loads things from cache, refreshing stale entries via BGG API.
   Optionally filters and sorts results at the database level.
+
+  Options:
+  - `:progress_pid` - PID to send progress updates to (format: `{:cache_progress, loaded, total}`)
   """
-  @spec load_things_cache([Thing.t()], map(), atom(), atom()) ::
+  @spec load_things_cache([Thing.t()], map(), atom(), atom(), keyword()) ::
           {:ok, [Thing.t()]} | {:error, atom()}
   def load_things_cache(
         things,
         filters \\ %{},
         sort_field \\ :primary_name,
-        sort_direction \\ :asc
+        sort_direction \\ :asc,
+        opts \\ []
       )
       when is_list(things) do
     # Extract Thing IDs from input list
     thing_ids = Enum.map(things, & &1.id)
-    Logger.debug("Loading #{length(thing_ids)} things from cache")
+    total_count = length(thing_ids)
+    progress_pid = Keyword.get(opts, :progress_pid)
+
+    Logger.debug("Loading #{total_count} things from cache")
 
     with {:ok, stale_ids} <- get_stale_thing_ids(thing_ids),
-         {:ok, _updated_things} <- update_stale_things(stale_ids),
+         {:ok, _updated_things} <- update_stale_things(stale_ids, progress_pid, total_count),
          {:ok, cached_things} <-
            get_all_cached_things(thing_ids, filters, sort_field, sort_direction) do
       Logger.debug("Successfully loaded #{length(cached_things)} things")
@@ -88,39 +95,57 @@ defmodule Core.BggCacher do
 
   @doc """
   Updates stale things by calling BGG API with rate limiting and chunking.
-  """
-  @spec update_stale_things([String.t()]) :: {:ok, [Thing.t()]} | {:error, atom()}
-  def update_stale_things([]), do: {:ok, []}
 
-  def update_stale_things(thing_ids) when is_list(thing_ids) do
+  Optionally sends progress updates to a PID.
+  """
+  @spec update_stale_things([String.t()], pid() | nil, non_neg_integer()) ::
+          {:ok, [Thing.t()]} | {:error, atom()}
+  def update_stale_things(thing_ids, progress_pid \\ nil, total_count \\ 0)
+
+  def update_stale_things([], _progress_pid, _total_count), do: {:ok, []}
+
+  def update_stale_things(thing_ids, progress_pid, total_count) when is_list(thing_ids) do
     Logger.info("Updating #{length(thing_ids)} stale things from BGG API")
 
     # Chunk into groups of 20 (BGG API limit)
     chunks = Enum.chunk_every(thing_ids, 20)
+    stale_count = length(thing_ids)
+    already_cached = max(0, total_count - stale_count)
 
     try do
       updated_things =
         chunks
         |> Enum.with_index()
-        |> Enum.reduce([], fn {chunk, index}, acc ->
+        |> Enum.flat_map(fn {chunk, index} ->
           Logger.debug(
             "Processing chunk #{index + 1}/#{length(chunks)} with #{length(chunk)} items"
           )
 
-          case update_chunk(chunk) do
-            {:ok, chunk_things} ->
-              # Rate limiting delay between chunks (except for the last one)
-              if index < length(chunks) - 1 do
-                :timer.sleep(@rate_limit_delay_ms)
-              end
-
-              acc ++ chunk_things
-
-            {:error, reason} ->
-              Logger.warning("Failed to update chunk #{index + 1}: #{inspect(reason)}")
-              # Continue with other chunks on failure
-              acc
+          # Rate limiting delay between chunks (except for the first one)
+          if index > 0 do
+            :timer.sleep(@rate_limit_delay_ms)
           end
+
+          result =
+            case update_chunk(chunk) do
+              {:ok, chunk_things} ->
+                chunk_things
+
+              {:error, reason} ->
+                Logger.warning("Failed to update chunk #{index + 1}: #{inspect(reason)}")
+                # Continue with other chunks on failure
+                []
+            end
+
+          # Send progress update if progress_pid provided
+          if progress_pid && total_count > 60 do
+            loaded_count = already_cached + (index + 1) * 20
+            # Cap loaded_count at total_count
+            loaded_count = min(loaded_count, total_count)
+            send(progress_pid, {:cache_progress, loaded_count, total_count})
+          end
+
+          result
         end)
 
       {:ok, updated_things}

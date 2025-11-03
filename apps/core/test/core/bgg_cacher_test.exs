@@ -440,7 +440,7 @@ defmodule Core.BggCacherTest do
       assert updated_thing.id == "old_schema"
       assert updated_thing.primary_name == "Updated Schema Game"
       # Should have updated schema version
-      assert updated_thing.schema_version == 2
+      assert updated_thing.schema_version == 3
     end
   end
 

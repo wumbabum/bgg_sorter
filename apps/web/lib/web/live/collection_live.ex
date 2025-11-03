@@ -67,6 +67,9 @@ defmodule Web.CollectionLive do
       |> assign(:mechanics_loading, false)
       |> assign(:mechanics_search_query, "")
       |> assign(:mechanics_search_results, [])
+      |> assign(:pending_modal_thing_id, nil)
+      |> assign(:pending_refilter, nil)
+      |> assign(:cache_progress, %{loaded: 0, total: 0})
 
     # Check for modal_thing_id and set up modal state
     socket =
@@ -128,6 +131,9 @@ defmodule Web.CollectionLive do
       |> assign(:mechanics_loading, false)
       |> assign(:mechanics_search_query, "")
       |> assign(:mechanics_search_results, [])
+      |> assign(:pending_modal_thing_id, nil)
+      |> assign(:pending_refilter, nil)
+      |> assign(:cache_progress, %{loaded: 0, total: 0})
 
     {:ok, socket}
   end
@@ -304,35 +310,36 @@ defmodule Web.CollectionLive do
               MapSet.to_list(socket.assigns.selected_mechanics)
             )
 
-          # Use BggCacher to re-sort with database-level operations
-          case Core.BggCacher.load_things_cache(
-                 original_items,
-                 client_filters_with_mechanics,
-                 sort_field,
-                 sort_direction
-               ) do
-            {:ok, sorted_items} ->
-              # Update with newly sorted data
-              total_items = length(sorted_items)
-              current_page_items = get_current_page_items_from_list(sorted_items, 1)
+          # Capture LiveView PID
+          liveview_pid = self()
 
-              updated_socket =
-                socket
-                |> assign(:all_collection_items, sorted_items)
-                |> assign(:collection_items, current_page_items)
-                |> assign(:total_items, total_items)
-                |> assign(:collection_loading, false)
+          # Use async Task to re-sort with database-level operations
+          _task =
+            Task.async(fn ->
+              try do
+                case Core.BggCacher.load_things_cache(
+                       original_items,
+                       client_filters_with_mechanics,
+                       sort_field,
+                       sort_direction
+                     ) do
+                  {:ok, items} ->
+                    send(liveview_pid, {:cache_loaded, self(), items})
+                    {:ok, items}
 
-              {:noreply, updated_socket}
+                  {:error, reason} = error ->
+                    send(liveview_pid, {:cache_error, self(), reason})
+                    error
+                end
+              rescue
+                error ->
+                  send(liveview_pid, {:cache_error, self(), {:exception, error}})
+                  {:error, {:exception, error}}
+              end
+            end)
 
-            {:error, reason} ->
-              Logger.warning(
-                "Database sorting failed: #{inspect(reason)}, falling back to reload"
-              )
-
-              send(self(), {:load_collection_with_filters, username, filters})
-              {:noreply, socket}
-          end
+          # Task will send {:cache_loaded, task_pid, sorted_items} message
+          {:noreply, socket}
         end
 
       # Same username and filters, but different page - just paginate existing data
@@ -420,50 +427,50 @@ defmodule Web.CollectionLive do
     bgg_params = convert_filters_to_bgg_params(filters)
     Logger.info("BGG API params: #{inspect(bgg_params)}")
 
-    # Extract client-only filters (those not supported by BGG API)
-    client_filters = extract_client_only_filters(filters)
-
-    # Note: Mechanics filtering is now done client-side, not passed to server
+    # Note: Mechanics filtering is now done client-side after cache loading
 
     with {:ok, %CollectionResponse{items: basic_items}} <-
            Core.BggGateway.collection(username, bgg_params) do
-      # First, get unfiltered cached things for client-side filtering
-      case Core.BggCacher.load_things_cache(
-             basic_items,
-             # No filters for original data
-             %{},
-             # Default sort for original data
-             :primary_name,
-             :asc
-           ) do
-        {:ok, original_items} ->
-          Logger.info(
-            "Loaded #{length(basic_items)} basic items, got #{length(original_items)} unfiltered cached items"
-          )
+      # Initialize progress tracking
+      socket = assign(socket, :cache_progress, %{loaded: 0, total: length(basic_items)})
 
-          # Now apply filters client-side to get the filtered results
-          socket =
-            socket
-            # Store original unfiltered data for client-side filtering
-            |> assign(:original_collection_items, original_items)
-            |> assign(:collection_loading, false)
-            |> assign(:search_error, nil)
-            # Apply all filters client-side (including mechanics)
-            |> apply_client_side_filters(client_filters)
+      # Capture LiveView PID before spawning Task
+      liveview_pid = self()
 
-          {:noreply, socket}
+      # Start async cache loading in isolated Task
+      _task =
+        Task.async(fn ->
+          try do
+            case Core.BggCacher.load_things_cache(
+                   basic_items,
+                   %{},
+                   :primary_name,
+                   :asc,
+                   progress_pid: liveview_pid
+                 ) do
+              {:ok, items} ->
+                send(liveview_pid, {:cache_loaded, self(), items})
+                {:ok, items}
 
-        {:error, reason} ->
-          error_message = format_error_message(reason)
-          Logger.warning("Failed to load cached things: #{inspect(reason)}")
+              {:error, reason} = error ->
+                send(liveview_pid, {:cache_error, self(), reason})
+                error
+            end
+          rescue
+            error ->
+              Logger.error("Cache loading crashed: #{inspect(error)}")
+              send(liveview_pid, {:cache_error, self(), {:exception, error}})
+              {:error, {:exception, error}}
+          catch
+            kind, value ->
+              Logger.error("Cache loading caught #{kind}: #{inspect(value)}")
+              send(liveview_pid, {:cache_error, self(), {kind, value}})
+              {:error, {kind, value}}
+          end
+        end)
 
-          socket =
-            socket
-            |> assign(:collection_loading, false)
-            |> assign(:search_error, error_message)
-
-          {:noreply, socket}
-      end
+      # Task will send {:cache_progress, loaded, total}, {:cache_loaded, task_pid, items} or {:cache_error, task_pid, reason}
+      {:noreply, socket}
     else
       {:error, reason} ->
         error_message = format_error_message(reason)
@@ -479,6 +486,123 @@ defmodule Web.CollectionLive do
   end
 
   @impl true
+  def handle_info({:cache_progress, loaded, total}, socket) do
+    # Update progress tracking
+    socket = assign(socket, :cache_progress, %{loaded: loaded, total: total})
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({ref, {:ok, _items}}, socket) when is_reference(ref) do
+    # Task completion message - ignore since we handle our own messages
+    Process.demonitor(ref, [:flush])
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, socket) do
+    # Task monitoring message - already handled via our error messages
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:cache_loaded, _task_pid, items}, socket) do
+    # Check what type of load this is
+    pending_modal_id = Map.get(socket.assigns, :pending_modal_thing_id)
+    pending_refilter = Map.get(socket.assigns, :pending_refilter)
+
+    cond do
+      # Modal loading - single item expected
+      pending_modal_id != nil and length(items) == 1 ->
+        [detailed_thing] = items
+        Logger.info("Loaded modal details for: #{inspect(detailed_thing.primary_name)}")
+
+        socket =
+          socket
+          |> assign(:modal_loading, false)
+          |> assign(:thing_details, detailed_thing)
+          |> assign(:selected_thing, detailed_thing)
+          |> assign(:modal_error, nil)
+          |> assign(:pending_modal_thing_id, nil)
+
+        {:noreply, socket}
+
+      # Modal loading but no items found
+      pending_modal_id != nil ->
+        socket =
+          socket
+          |> assign(:modal_loading, false)
+          |> assign(:modal_error, "Game not found in your collection")
+          |> assign(:pending_modal_thing_id, nil)
+
+        {:noreply, socket}
+
+      # Re-filter/re-sort operation on existing data
+      pending_refilter != nil ->
+        Logger.info("Received re-filtered/sorted data with #{length(items)} items")
+
+        # Update pagination
+        total_items = length(items)
+        current_page_items = get_current_page_items_from_list(items, socket.assigns.current_page)
+
+        socket =
+          socket
+          |> assign(:filters, pending_refilter)
+          |> assign(:all_collection_items, items)
+          |> assign(:collection_items, current_page_items)
+          |> assign(:total_items, total_items)
+          |> assign(:collection_loading, false)
+          |> assign(:pending_refilter, nil)
+
+        {:noreply, socket}
+
+      # Main collection loading (original unfiltered data)
+      true ->
+        Logger.info("Received cache_loaded message with #{length(items)} unfiltered cached items")
+
+        # Extract client-only filters
+        client_filters = extract_client_only_filters(socket.assigns.filters)
+
+        # Now apply filters client-side to get the filtered results
+        socket =
+          socket
+          # Store original unfiltered data for client-side filtering
+          |> assign(:original_collection_items, items)
+          |> assign(:collection_loading, false)
+          |> assign(:search_error, nil)
+          # Apply all filters client-side (including mechanics)
+          |> apply_client_side_filters(client_filters)
+
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:cache_error, _task_pid, reason}, socket) do
+    error_message = format_error_message(reason)
+    Logger.warning("Failed to load cached things: #{inspect(reason)}")
+
+    # Check if this was for modal or main collection
+    pending_modal_id = Map.get(socket.assigns, :pending_modal_thing_id)
+
+    socket =
+      if pending_modal_id != nil do
+        # Modal error
+        socket
+        |> assign(:modal_loading, false)
+        |> assign(:modal_error, "Failed to load game details: #{error_message}")
+        |> assign(:pending_modal_thing_id, nil)
+      else
+        # Collection error
+        socket
+        |> assign(:collection_loading, false)
+        |> assign(:search_error, error_message)
+      end
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:load_modal_details_by_id, thing_id}, socket) do
     # Try to parse the thing_id
     case Integer.parse(to_string(thing_id)) do
@@ -486,35 +610,33 @@ defmodule Web.CollectionLive do
         # Create a minimal thing struct to query with
         minimal_thing = %{id: to_string(parsed_id)}
 
-        case Core.BggCacher.load_things_cache([minimal_thing]) do
-          {:ok, [detailed_thing]} ->
-            socket =
-              socket
-              |> assign(:modal_loading, false)
-              |> assign(:thing_details, detailed_thing)
-              |> assign(:selected_thing, detailed_thing)
-              |> assign(:modal_error, nil)
+        # Capture LiveView PID
+        liveview_pid = self()
 
-            {:noreply, socket}
+        # Start async Task for modal loading
+        _task =
+          Task.async(fn ->
+            try do
+              case Core.BggCacher.load_things_cache([minimal_thing]) do
+                {:ok, items} ->
+                  send(liveview_pid, {:cache_loaded, self(), items})
+                  {:ok, items}
 
-          {:ok, []} ->
-            socket =
-              socket
-              |> assign(:modal_loading, false)
-              |> assign(:modal_error, "Game not found in your collection")
+                {:error, reason} = error ->
+                  send(liveview_pid, {:cache_error, self(), reason})
+                  error
+              end
+            rescue
+              error ->
+                send(liveview_pid, {:cache_error, self(), {:exception, error}})
+                {:error, {:exception, error}}
+            end
+          end)
 
-            {:noreply, socket}
-
-          {:error, reason} ->
-            error_message = format_error_message(reason)
-
-            socket =
-              socket
-              |> assign(:modal_loading, false)
-              |> assign(:modal_error, "Failed to load game details: #{error_message}")
-
-            {:noreply, socket}
-        end
+        # Task will send {:cache_loaded, task_pid, items} or {:cache_error, task_pid, reason}
+        # Store thing_id in socket to identify this is for modal
+        socket = assign(socket, :pending_modal_thing_id, to_string(parsed_id))
+        {:noreply, socket}
 
       :error ->
         socket =
@@ -532,38 +654,33 @@ defmodule Web.CollectionLive do
       "Loading modal details for thing: #{inspect(thing.primary_name)} (ID: #{thing.id})"
     )
 
-    case Core.BggCacher.load_things_cache([thing]) do
-      {:ok, [detailed_thing]} ->
-        Logger.info("Loaded detailed thing: #{inspect(detailed_thing.primary_name)}")
-        Logger.info("Thing mechanics: #{inspect(detailed_thing.mechanics)}")
-        Logger.info("Mechanics count: #{length(detailed_thing.mechanics || [])}")
+    # Capture LiveView PID
+    liveview_pid = self()
 
-        socket =
-          socket
-          |> assign(:modal_loading, false)
-          |> assign(:thing_details, detailed_thing)
-          |> assign(:modal_error, nil)
+    # Start async Task for modal loading
+    _task =
+      Task.async(fn ->
+        try do
+          case Core.BggCacher.load_things_cache([thing]) do
+            {:ok, items} ->
+              send(liveview_pid, {:cache_loaded, self(), items})
+              {:ok, items}
 
-        {:noreply, socket}
+            {:error, reason} = error ->
+              send(liveview_pid, {:cache_error, self(), reason})
+              error
+          end
+        rescue
+          error ->
+            send(liveview_pid, {:cache_error, self(), {:exception, error}})
+            {:error, {:exception, error}}
+        end
+      end)
 
-      {:ok, []} ->
-        socket =
-          socket
-          |> assign(:modal_loading, false)
-          |> assign(:modal_error, "Game details not found")
-
-        {:noreply, socket}
-
-      {:error, reason} ->
-        error_message = format_error_message(reason)
-
-        socket =
-          socket
-          |> assign(:modal_loading, false)
-          |> assign(:modal_error, "Failed to load game details: #{error_message}")
-
-        {:noreply, socket}
-    end
+    # Task will send {:cache_loaded, task_pid, items} or {:cache_error, task_pid, reason}
+    # Store thing_id in socket to identify this is for modal
+    socket = assign(socket, :pending_modal_thing_id, thing.id)
+    {:noreply, socket}
   end
 
   @impl true
@@ -1322,34 +1439,39 @@ defmodule Web.CollectionLive do
           MapSet.to_list(socket.assigns.selected_mechanics)
         )
 
-      # Use BggCacher to apply database-level filtering and sorting
-      case Core.BggCacher.load_things_cache(
-             original_items,
-             client_filters_with_mechanics,
-             socket.assigns.sort_by,
-             socket.assigns.sort_direction
-           ) do
-        {:ok, filtered_items} ->
-          # Update pagination
-          total_items = length(filtered_items)
+      # Capture LiveView PID
+      liveview_pid = self()
 
-          current_page_items =
-            get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
+      # Use async Task to apply database-level filtering and sorting
+      _task =
+        Task.async(fn ->
+          try do
+            case Core.BggCacher.load_things_cache(
+                   original_items,
+                   client_filters_with_mechanics,
+                   socket.assigns.sort_by,
+                   socket.assigns.sort_direction
+                 ) do
+              {:ok, items} ->
+                send(liveview_pid, {:cache_loaded, self(), items})
+                {:ok, items}
 
-          updated_socket =
-            socket
-            |> assign(:filters, new_filters)
-            |> assign(:all_collection_items, filtered_items)
-            |> assign(:collection_items, current_page_items)
-            |> assign(:total_items, total_items)
-            |> assign(:collection_loading, false)
+              {:error, reason} = error ->
+                send(liveview_pid, {:cache_error, self(), reason})
+                error
+            end
+          rescue
+            error ->
+              send(liveview_pid, {:cache_error, self(), {:exception, error}})
+              {:error, {:exception, error}}
+          end
+        end)
 
-          {:ok, updated_socket}
+      # Store the new filters so we know this is a re-filter operation
+      socket = assign(socket, :pending_refilter, new_filters)
 
-        {:error, reason} ->
-          Logger.warning("Database filtering failed: #{inspect(reason)}, falling back to reload")
-          {:reload_needed, socket}
-      end
+      # Task will send {:cache_loaded, task_pid, filtered_items} message
+      {:ok, socket}
     end
   end
 

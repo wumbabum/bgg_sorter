@@ -32,7 +32,10 @@ defmodule Core.BggGateway do
       {:ok, collection}
     else
       {:ok, %Req.Response{status: status} = response} ->
-        Logger.error("BGG request failed with status: #{status}, body: #{String.slice(response.body, 0, 200)}")
+        Logger.error(
+          "BGG request failed with status: #{status}, body: #{String.slice(response.body, 0, 200)}"
+        )
+
         {:error, :not_found}
 
       {:error, reason} ->

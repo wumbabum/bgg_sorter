@@ -42,7 +42,7 @@ defmodule Core.Schemas.ThingUpsertTest do
       assert %DateTime{} = thing.last_cached
       assert %DateTime{} = thing.inserted_at
       assert %DateTime{} = thing.updated_at
-      assert thing.schema_version == 2
+      assert thing.schema_version == 3
 
       # Verify it's in the database
       db_thing = Core.Repo.get(Thing, "123456")
@@ -66,7 +66,7 @@ defmodule Core.Schemas.ThingUpsertTest do
       assert %DateTime{} = thing.last_cached
       assert %DateTime{} = thing.inserted_at
       assert %DateTime{} = thing.updated_at
-      assert thing.schema_version == 2
+      assert thing.schema_version == 3
     end
 
     test "updates existing thing with new data", %{thing_params: params} do
@@ -214,12 +214,12 @@ defmodule Core.Schemas.ThingUpsertTest do
 
     test "always sets schema_version to 2 for new upserts", %{thing_params: params} do
       assert {:ok, thing} = Thing.upsert_thing(params)
-      assert thing.schema_version == 2
+      assert thing.schema_version == 3
 
       # Even when updating, schema_version should remain 2
       updated_params = Map.put(params, "primary_name", "Updated Name")
       assert {:ok, updated_thing} = Thing.upsert_thing(updated_params)
-      assert updated_thing.schema_version == 2
+      assert updated_thing.schema_version == 3
     end
 
     test "overrides manually set nil schema_version to ensure current version" do
@@ -231,7 +231,7 @@ defmodule Core.Schemas.ThingUpsertTest do
       }
 
       assert {:ok, thing} = Thing.upsert_thing(params_with_nil_schema)
-      assert thing.schema_version == 2
+      assert thing.schema_version == 3
     end
   end
 end
