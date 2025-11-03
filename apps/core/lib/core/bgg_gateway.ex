@@ -30,8 +30,9 @@ defmodule Core.BggGateway do
          Logger.info(
            "Fetching collection for #{username} (attempt #{attempt}/3) with params: #{inspect(validated_params)}"
          ),
+         headers <- collection_headers(),
          {:ok, %Req.Response{status: 200} = response} <-
-           req_client().get(url, validated_params, %{}),
+           req_client().get(url, validated_params, headers),
          {:ok, collection} <- parse_xml_response(response.body) do
       {:ok, collection}
     else
@@ -152,10 +153,10 @@ defmodule Core.BggGateway do
       |> Enum.into(%{})
       |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
       |> Enum.into(%{})
-
     url = "#{@base_url}/thing"
+    headers = collection_headers()
 
-    with {:ok, %Req.Response{status: 200} = response} <- req_client().get(url, params, %{}),
+    with {:ok, %Req.Response{status: 200} = response} <- req_client().get(url, params, headers),
          {:ok, things} <- parse_things_xml_response(response.body) do
       {:ok, things}
     else
@@ -267,5 +268,18 @@ defmodule Core.BggGateway do
 
   defp req_client do
     Application.get_env(:core, :bgg_req_client, Core.BggGateway.ReqClient)
+  end
+
+  defp api_key do
+    :core
+    |> Application.get_env(Core.BggGateway, [])
+    |> Keyword.get(:bgg_api_key)
+  end
+
+  defp collection_headers do
+    case api_key() do
+      nil -> %{}
+      key -> %{"Authorization" => "Bearer #{key}"}
+    end
   end
 end

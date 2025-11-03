@@ -2,6 +2,9 @@ import Config
 
 config :core, :bgg_req_client, Core.MockReqClient
 
+# Configure BggGateway for testing
+config :core, Core.BggGateway, bgg_api_key: "test_api_key"
+
 # Configure ReqClient to use Req.Test stub for testing
 config :core, Core.BggGateway.ReqClient,
   retry: false,

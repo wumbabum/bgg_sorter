@@ -18,6 +18,9 @@ import Config
 
 config :core, :bgg_req_client, Core.BggGateway.ReqClient
 
+# Configure BggGateway
+config :core, Core.BggGateway, bgg_api_key: "api_key_placeholder"
+
 # Configure ReqClient retry behavior
 config :core, Core.BggGateway.ReqClient,
   retry: false,

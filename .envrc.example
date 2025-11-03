@@ -1,0 +1,14 @@
+# BoardGameGeek API Configuration
+# Copy this file to .envrc and fill in your actual API key
+# Then run: direnv allow
+
+# BGG API Key - obtain from https://boardgamegeek.com/
+export BGG_API_KEY="your_api_key_here"
+
+# Database Configuration (optional for local development)
+# export DATABASE_URL="postgres://localhost/bgg_sorter_dev"
+
+# Phoenix Configuration (optional overrides)
+# export SECRET_KEY_BASE="your_secret_key_base"
+# export PHX_HOST="localhost"
+# export PORT="7384"

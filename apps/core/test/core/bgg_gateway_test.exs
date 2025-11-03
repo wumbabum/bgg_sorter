@@ -11,9 +11,10 @@ defmodule Core.BggGatewayTest do
 
   describe "collection/2" do
     test "returns successful response with valid XML data for existing user" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == "wumbabum"
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
@@ -71,9 +72,10 @@ defmodule Core.BggGatewayTest do
     test "returns error XML for non-existent user" do
       non_existent_user = "thisuserdoesnotexistanywhere12345"
 
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == non_existent_user
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
@@ -142,11 +144,12 @@ defmodule Core.BggGatewayTest do
     end
 
     test "accepts valid collection request parameters" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == "testuser"
         assert params["own"] == "1"
         assert params["stats"] == "1"
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
@@ -164,10 +167,11 @@ defmodule Core.BggGatewayTest do
     end
 
     test "filters out nil values from request parameters" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == "testuser"
         assert params["own"] == "1"
+        assert headers["Authorization"] == "Bearer test_api_key"
         # nil values should be filtered out
         refute Map.has_key?(params, "stats")
         refute Map.has_key?(params, "subtype")
@@ -208,10 +212,11 @@ defmodule Core.BggGatewayTest do
     end
 
     test "accepts valid date format for modifiedsince parameter" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/collection"
         assert params["username"] == "testuser"
         assert params["modifiedsince"] == "2025-01-01"
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
@@ -230,10 +235,11 @@ defmodule Core.BggGatewayTest do
 
   describe "things/2" do
     test "returns successful response with valid XML data for existing things" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "68448,124742,359871"
         assert params["stats"] == "1"
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
@@ -396,10 +402,11 @@ defmodule Core.BggGatewayTest do
     end
 
     test "returns error XML for invalid thing IDs" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "999999999"
         assert params["stats"] == "1"
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
@@ -421,7 +428,8 @@ defmodule Core.BggGatewayTest do
     end
 
     test "returns :not_found for non-200 HTTP status" do
-      expect(Core.MockReqClient, :get, fn _url, _params, _headers ->
+      expect(Core.MockReqClient, :get, fn _url, _params, headers ->
+        assert headers["Authorization"] == "Bearer test_api_key"
         {:ok, %Req.Response{status: 404, body: "Not Found"}}
       end)
 
@@ -429,7 +437,8 @@ defmodule Core.BggGatewayTest do
     end
 
     test "returns HTTP request error when request fails" do
-      expect(Core.MockReqClient, :get, fn _url, _params, _headers ->
+      expect(Core.MockReqClient, :get, fn _url, _params, headers ->
+        assert headers["Authorization"] == "Bearer test_api_key"
         {:error, %RuntimeError{message: "Connection timeout"}}
       end)
 
@@ -437,7 +446,8 @@ defmodule Core.BggGatewayTest do
     end
 
     test "returns :failed_to_parse_xml for malformed XML" do
-      expect(Core.MockReqClient, :get, fn _url, _params, _headers ->
+      expect(Core.MockReqClient, :get, fn _url, _params, headers ->
+        assert headers["Authorization"] == "Bearer test_api_key"
         {:ok, %Req.Response{status: 200, body: "not xml at all"}}
       end)
 
@@ -446,7 +456,8 @@ defmodule Core.BggGatewayTest do
 
     test "returns :invalid_thing_data when changeset validation fails" do
       # Mock valid XML structure but with invalid data that would fail changeset validation
-      expect(Core.MockReqClient, :get, fn _url, _params, _headers ->
+      expect(Core.MockReqClient, :get, fn _url, _params, headers ->
+        assert headers["Authorization"] == "Bearer test_api_key"
         {:ok,
          %Req.Response{
            status: 200,
@@ -467,10 +478,11 @@ defmodule Core.BggGatewayTest do
     end
 
     test "handles integer IDs" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "68448"
         assert params["stats"] == "1"
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
@@ -494,9 +506,10 @@ defmodule Core.BggGatewayTest do
     end
 
     test "handles mixed string and integer IDs" do
-      expect(Core.MockReqClient, :get, fn url, params, _headers ->
+      expect(Core.MockReqClient, :get, fn url, params, headers ->
         assert url == "https://boardgamegeek.com/xmlapi2/thing"
         assert params["id"] == "68448,124742"
+        assert headers["Authorization"] == "Bearer test_api_key"
 
         {:ok,
          %Req.Response{
