@@ -10,7 +10,7 @@ defmodule Core.BggCacher do
   alias Core.BggGateway
 
   @cache_ttl_weeks 1
-  @rate_limit_delay_ms 1000
+  @rate_limit_delay_ms 4000
   @current_schema_version 3
 
   @doc """
