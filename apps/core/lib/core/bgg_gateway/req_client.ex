@@ -43,16 +43,14 @@ defmodule Core.BggGateway.ReqClient do
 
   @doc "Makes a GET request to the specified URL."
   @impl Behaviour
-  def get(url, params, headers) do
+  def get(url, params, headers, opts \\ []) do
     redacted_headers = redact_auth_headers(headers)
 
     Logger.info(
       "Making GET request with args: #{inspect(%{url: url, params: params, headers: redacted_headers})}"
     )
 
-    opts = [params: params, headers: headers] ++ req_options()
-
-    case Req.get(url, opts) do
+    case Req.new(req_options(opts)) |> Req.get(url: url, params: params, headers: headers) do
       {:ok, _response} = result ->
         result
 
@@ -64,58 +62,58 @@ defmodule Core.BggGateway.ReqClient do
 
   @doc "Makes a POST request to the specified URL."
   @impl Behaviour
-  def post(url, params, headers, body \\ nil) do
-    request_opts = [params: params, headers: headers] ++ req_options()
-
+  def post(url, params, headers, body \\ nil, opts \\ []) do
     request_opts =
       case body do
-        nil -> request_opts
-        body when is_map(body) -> Keyword.put(request_opts, :json, body)
-        body -> Keyword.put(request_opts, :body, body)
+        nil -> [params: params, headers: headers]
+        body when is_map(body) -> [params: params, headers: headers, json: body]
+        body -> [params: params, headers: headers, body: body]
       end
 
-    Req.post(url, request_opts)
+    Req.new(req_options(opts)) |> Req.post([url: url] ++ request_opts)
   end
 
   @doc "Makes a PATCH request to the specified URL."
   @impl Behaviour
-  def patch(url, params, headers, body \\ nil) do
-    request_opts = [params: params, headers: headers] ++ req_options()
-
+  def patch(url, params, headers, body \\ nil, opts \\ []) do
     request_opts =
       case body do
-        nil -> request_opts
-        body when is_map(body) -> Keyword.put(request_opts, :json, body)
-        body -> Keyword.put(request_opts, :body, body)
+        nil -> [params: params, headers: headers]
+        body when is_map(body) -> [params: params, headers: headers, json: body]
+        body -> [params: params, headers: headers, body: body]
       end
 
-    Req.patch(url, request_opts)
+    Req.new(req_options(opts)) |> Req.patch([url: url] ++ request_opts)
   end
 
   @doc "Makes an OPTIONS request to the specified URL."
   @impl Behaviour
-  def options(url, params, headers) do
-    opts = [method: :options, url: url, params: params, headers: headers] ++ req_options()
-    Req.request(opts)
+  def options(url, params, headers, opts \\ []) do
+    Req.new(req_options(opts))
+    |> Req.request(method: :options, url: url, params: params, headers: headers)
   end
 
   # Private helper to get configured request options
-  defp req_options do
+  defp req_options(opts) do
     # BGG API requires retry logic due to rate limiting and service issues
-    [
-      retry: &should_retry?/1,
-      max_retries: 3,
-      retry_delay: fn attempt -> attempt * 2000 end,
+    max_retries = Keyword.get(opts, :max_retries, 3)
+    plug = Keyword.get(opts, :plug)
+
+    base_opts = [
+      retry: &should_retry?/2,
+      max_retries: max_retries,
       receive_timeout: 30_000
     ]
+
+    if plug, do: Keyword.put(base_opts, :plug, plug), else: base_opts
   end
 
   # Custom retry logic for BGG API quirks
-  defp should_retry?({:ok, %Req.Response{status: 202}}), do: true
-  defp should_retry?({:ok, %Req.Response{status: 429}}), do: true
-  defp should_retry?({:ok, %Req.Response{status: status}}) when status >= 500, do: true
-  defp should_retry?({:error, %Req.TransportError{}}), do: true
-  defp should_retry?(_), do: false
+  defp should_retry?(_req, %Req.Response{status: 202}), do: {:delay, 3500}
+  defp should_retry?(_req, %Req.Response{status: 429}), do: {:delay, 5000}
+  defp should_retry?(_req, %Req.Response{status: status}) when status >= 500, do: {:delay, 3500}
+  defp should_retry?(_req, %Req.TransportError{}), do: {:delay, 3500}
+  defp should_retry?(_req, _result), do: false
 
   # Redacts sensitive headers for logging
   defp redact_auth_headers(headers) when is_map(headers) do
