@@ -111,8 +111,6 @@ defmodule Core.BggCacherTest do
     end
   end
 
-  # Note: get_all_cached_things is now private and tested through load_things_cache
-
   describe "update_stale_things/1" do
     test "returns ok with empty list for no stale IDs" do
       assert {:ok, []} = BggCacher.update_stale_things([])
@@ -444,6 +442,215 @@ defmodule Core.BggCacherTest do
     end
   end
 
+  describe "update_stale_things chunk notifications" do
+    test "sends {:chunk_cached, things} for each chunk" do
+      stale_ids = ["c1", "c2"]
+
+      mock_things = [
+        build_thing("c1", "Chunk Game 1"),
+        build_thing("c2", "Chunk Game 2")
+      ]
+
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(mock_things)}}
+      end)
+
+      assert {:ok, _} = BggCacher.update_stale_things(stale_ids, notify_pid: self())
+
+      assert_receive {:chunk_cached, things}
+      assert length(things) == 2
+      assert_receive {:stale_updates_complete}
+    end
+
+    test "sends {:stale_updates_complete} even when no stale IDs" do
+      assert {:ok, []} = BggCacher.update_stale_things([], notify_pid: self())
+      assert_receive {:stale_updates_complete}
+    end
+
+    test "sends {:chunk_cached, things} per chunk for multiple chunks" do
+      stale_ids = for i <- 1..25, do: "m#{i}"
+
+      first_chunk = for i <- 1..20, do: build_thing("m#{i}", "Game #{i}")
+      second_chunk = for i <- 21..25, do: build_thing("m#{i}", "Game #{i}")
+
+      Core.MockReqClient
+      |> expect(:get, 2, fn _url, params, _headers ->
+        id_param = params[:id] || params["id"]
+        ids = String.split(to_string(id_param), ",")
+
+        case length(ids) do
+          20 -> {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(first_chunk)}}
+          5 -> {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(second_chunk)}}
+        end
+      end)
+
+      assert {:ok, _} = BggCacher.update_stale_things(stale_ids, notify_pid: self())
+
+      assert_receive {:chunk_cached, chunk1}
+      assert length(chunk1) == 20
+      assert_receive {:chunk_cached, chunk2}
+      assert length(chunk2) == 5
+      assert_receive {:stale_updates_complete}
+    end
+
+    test "does not send {:chunk_cached, _} on failed chunk" do
+      stale_ids = ["fail1"]
+
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:error, %RuntimeError{message: "API failure"}}
+      end)
+
+      assert {:ok, _} = BggCacher.update_stale_things(stale_ids, notify_pid: self())
+
+      refute_receive {:chunk_cached, _}
+      assert_receive {:stale_updates_complete}
+    end
+  end
+
+  describe "get_all_cached_things/5" do
+    test "returns only fresh things, excludes stale" do
+      _fresh = insert_fresh_thing("fresh1")
+      _fresh2 = insert_fresh_thing("fresh2")
+
+      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      _stale = insert_thing_with_cache("stale1", stale_time)
+
+      _never_cached = insert_thing_without_cache("never1")
+
+      all_ids = ["fresh1", "fresh2", "stale1", "never1"]
+
+      assert {:ok, results} = BggCacher.get_all_cached_things(all_ids)
+      result_ids = Enum.map(results, & &1.id) |> Enum.sort()
+      assert result_ids == ["fresh1", "fresh2"]
+    end
+
+    test "excludes things with outdated schema version" do
+      _fresh = insert_fresh_thing("current")
+      _old = insert_thing_with_schema_version("old", 1)
+
+      assert {:ok, results} = BggCacher.get_all_cached_things(["current", "old"])
+      assert length(results) == 1
+      assert hd(results).id == "current"
+    end
+
+    test "applies filters and sorting" do
+      {:ok, _} = Thing.upsert_thing(%{"id" => "a", "type" => "boardgame", "primary_name" => "Alpha", "average" => "9.0"})
+      {:ok, _} = Thing.upsert_thing(%{"id" => "b", "type" => "boardgame", "primary_name" => "Beta", "average" => "6.0"})
+
+      assert {:ok, filtered} = BggCacher.get_all_cached_things(["a", "b"], %{average: "8.0"}, :primary_name, :asc)
+      assert length(filtered) == 1
+      assert hd(filtered).primary_name == "Alpha"
+
+      assert {:ok, sorted} = BggCacher.get_all_cached_things(["a", "b"], %{}, :primary_name, :desc)
+      names = Enum.map(sorted, & &1.primary_name)
+      assert names == ["Beta", "Alpha"]
+    end
+
+    test "sends {:cached_things_loaded, things} to notify_pid" do
+      _fresh = insert_fresh_thing("notified")
+
+      assert {:ok, _} = BggCacher.get_all_cached_things(["notified"], %{}, :primary_name, :asc, notify_pid: self())
+
+      assert_receive {:cached_things_loaded, things}
+      assert length(things) == 1
+      assert hd(things).id == "notified"
+    end
+
+    test "does not send message when notify_pid is not provided" do
+      _fresh = insert_fresh_thing("quiet")
+
+      assert {:ok, _} = BggCacher.get_all_cached_things(["quiet"])
+
+      refute_receive {:cached_things_loaded, _}
+    end
+
+    test "returns empty list for IDs not in database" do
+      assert {:ok, results} = BggCacher.get_all_cached_things(["nonexistent"])
+      assert results == []
+    end
+  end
+
+  describe "cache retention integration" do
+    test "second call skips BGG API when things are freshly cached" do
+      input_things = [
+        %Thing{id: "10", type: "boardgame"},
+        %Thing{id: "20", type: "boardgame"}
+      ]
+
+      mock_things = [
+        build_thing("10", "Cached Game A"),
+        build_thing("20", "Cached Game B")
+      ]
+
+      # First call: mock expects exactly 1 API call
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(mock_things)}}
+      end)
+
+      # First load — hits BGG API, upserts into DB
+      assert {:ok, first_result} = BggCacher.load_things_cache(input_things)
+      assert length(first_result) == 2
+
+      # Verify records exist in DB
+      db_count = Core.Repo.aggregate(Thing, :count)
+      assert db_count == 2
+
+      # Second load — NO mock expectation set, so if it tries to call
+      # the API, Mox will raise an error. This proves caching works.
+      assert {:ok, second_result} = BggCacher.load_things_cache(input_things)
+      assert length(second_result) == 2
+
+      # Data should match what was cached
+      names = Enum.map(second_result, & &1.primary_name) |> Enum.sort()
+      assert names == ["Cached Game A", "Cached Game B"]
+    end
+
+    test "second call uses DB data even with different filters/sort" do
+      input_things = [
+        %Thing{id: "30", type: "boardgame"},
+        %Thing{id: "40", type: "boardgame"}
+      ]
+
+      mock_things = [
+        %Thing{
+          id: "30", type: "boardgame", primary_name: "Zebra Game",
+          average: "8.5", minplayers: "2", maxplayers: "4",
+          yearpublished: "2024", playingtime: "60", rank: "50"
+        },
+        %Thing{
+          id: "40", type: "boardgame", primary_name: "Alpha Game",
+          average: "7.0", minplayers: "1", maxplayers: "6",
+          yearpublished: "2024", playingtime: "90", rank: "200"
+        }
+      ]
+
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(mock_things)}}
+      end)
+
+      # First load
+      assert {:ok, _} = BggCacher.load_things_cache(input_things)
+
+      # Second load with filters — no API call
+      assert {:ok, filtered} =
+               BggCacher.load_things_cache(input_things, %{average: "8.0"}, :average, :desc)
+
+      assert length(filtered) == 1
+      assert hd(filtered).primary_name == "Zebra Game"
+
+      # Third load with different sort — no API call
+      assert {:ok, sorted} =
+               BggCacher.load_things_cache(input_things, %{}, :primary_name, :asc)
+
+      names = Enum.map(sorted, & &1.primary_name)
+      assert names == ["Alpha Game", "Zebra Game"]
+    end
+  end
+
   # Helper functions for testing
   defp insert_thing_without_cache(id) do
     {:ok, thing} =
@@ -520,6 +727,9 @@ defmodule Core.BggCacherTest do
       |> Enum.map(fn thing ->
         mechanics_links = ""
 
+        average_xml = if thing.average, do: ~s(<average value="#{thing.average}" />), else: ""
+        averageweight_xml = if thing.averageweight, do: ~s(<averageweight value="#{thing.averageweight}" />), else: ""
+
         ~s(<item type="#{thing.type}" id="#{thing.id}">
             <name type="primary" sortindex="1" value="#{thing.primary_name}" />
             <yearpublished value="#{thing.yearpublished}" />
@@ -529,6 +739,8 @@ defmodule Core.BggCacherTest do
             #{mechanics_links}
             <statistics>
               <ratings>
+                #{average_xml}
+                #{averageweight_xml}
                 <ranks>
                   <rank type="subtype" id="1" name="boardgame" friendlyname="Board Game Rank" value="#{thing.rank}" />
                 </ranks>
