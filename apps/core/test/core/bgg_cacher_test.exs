@@ -444,6 +444,85 @@ defmodule Core.BggCacherTest do
     end
   end
 
+  describe "cache retention integration" do
+    test "second call skips BGG API when things are freshly cached" do
+      input_things = [
+        %Thing{id: "10", type: "boardgame"},
+        %Thing{id: "20", type: "boardgame"}
+      ]
+
+      mock_things = [
+        build_thing("10", "Cached Game A"),
+        build_thing("20", "Cached Game B")
+      ]
+
+      # First call: mock expects exactly 1 API call
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(mock_things)}}
+      end)
+
+      # First load — hits BGG API, upserts into DB
+      assert {:ok, first_result} = BggCacher.load_things_cache(input_things)
+      assert length(first_result) == 2
+
+      # Verify records exist in DB
+      db_count = Core.Repo.aggregate(Thing, :count)
+      assert db_count == 2
+
+      # Second load — NO mock expectation set, so if it tries to call
+      # the API, Mox will raise an error. This proves caching works.
+      assert {:ok, second_result} = BggCacher.load_things_cache(input_things)
+      assert length(second_result) == 2
+
+      # Data should match what was cached
+      names = Enum.map(second_result, & &1.primary_name) |> Enum.sort()
+      assert names == ["Cached Game A", "Cached Game B"]
+    end
+
+    test "second call uses DB data even with different filters/sort" do
+      input_things = [
+        %Thing{id: "30", type: "boardgame"},
+        %Thing{id: "40", type: "boardgame"}
+      ]
+
+      mock_things = [
+        %Thing{
+          id: "30", type: "boardgame", primary_name: "Zebra Game",
+          average: "8.5", minplayers: "2", maxplayers: "4",
+          yearpublished: "2024", playingtime: "60", rank: "50"
+        },
+        %Thing{
+          id: "40", type: "boardgame", primary_name: "Alpha Game",
+          average: "7.0", minplayers: "1", maxplayers: "6",
+          yearpublished: "2024", playingtime: "90", rank: "200"
+        }
+      ]
+
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(mock_things)}}
+      end)
+
+      # First load
+      assert {:ok, _} = BggCacher.load_things_cache(input_things)
+
+      # Second load with filters — no API call
+      assert {:ok, filtered} =
+               BggCacher.load_things_cache(input_things, %{average: "8.0"}, :average, :desc)
+
+      assert length(filtered) == 1
+      assert hd(filtered).primary_name == "Zebra Game"
+
+      # Third load with different sort — no API call
+      assert {:ok, sorted} =
+               BggCacher.load_things_cache(input_things, %{}, :primary_name, :asc)
+
+      names = Enum.map(sorted, & &1.primary_name)
+      assert names == ["Alpha Game", "Zebra Game"]
+    end
+  end
+
   # Helper functions for testing
   defp insert_thing_without_cache(id) do
     {:ok, thing} =
@@ -520,6 +599,9 @@ defmodule Core.BggCacherTest do
       |> Enum.map(fn thing ->
         mechanics_links = ""
 
+        average_xml = if thing.average, do: ~s(<average value="#{thing.average}" />), else: ""
+        averageweight_xml = if thing.averageweight, do: ~s(<averageweight value="#{thing.averageweight}" />), else: ""
+
         ~s(<item type="#{thing.type}" id="#{thing.id}">
             <name type="primary" sortindex="1" value="#{thing.primary_name}" />
             <yearpublished value="#{thing.yearpublished}" />
@@ -529,6 +611,8 @@ defmodule Core.BggCacherTest do
             #{mechanics_links}
             <statistics>
               <ratings>
+                #{average_xml}
+                #{averageweight_xml}
                 <ranks>
                   <rank type="subtype" id="1" name="boardgame" friendlyname="Board Game Rank" value="#{thing.rank}" />
                 </ranks>
