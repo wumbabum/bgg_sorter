@@ -15,10 +15,10 @@ defmodule Core.BggCacher do
 
   @doc """
   Loads things from cache, refreshing stale entries via BGG API.
-  Optionally filters and sorts results at the database level.
+  Applies filters and sorting at the database level.
 
   Options:
-  - `:progress_pid` - PID to send progress updates to (format: `{:cache_progress, loaded, total}`)
+  - `:notify_pid` - PID to send `{:chunk_cached, things}` and `{:stale_updates_complete}` messages to
   """
   @spec load_things_cache([Thing.t()], map(), atom(), atom(), keyword()) ::
           {:ok, [Thing.t()]} | {:error, atom()}
@@ -30,15 +30,14 @@ defmodule Core.BggCacher do
         opts \\ []
       )
       when is_list(things) do
-    # Extract Thing IDs from input list
     thing_ids = Enum.map(things, & &1.id)
     total_count = length(thing_ids)
-    progress_pid = Keyword.get(opts, :progress_pid)
+    notify_pid = Keyword.get(opts, :notify_pid)
 
     Logger.debug("Loading #{total_count} things from cache")
 
     with {:ok, stale_ids} <- get_stale_thing_ids(thing_ids),
-         {:ok, _updated_things} <- update_stale_things(stale_ids, progress_pid, total_count),
+         {:ok, _updated_things} <- update_stale_things(stale_ids, notify_pid: notify_pid),
          {:ok, cached_things} <-
            get_all_cached_things(thing_ids, filters, sort_field, sort_direction) do
       Logger.debug("Successfully loaded #{length(cached_things)} things")
@@ -96,21 +95,23 @@ defmodule Core.BggCacher do
   @doc """
   Updates stale things by calling BGG API with rate limiting and chunking.
 
-  Optionally sends progress updates to a PID.
+  Options:
+  - `:notify_pid` - PID to send `{:chunk_cached, things}` after each chunk and `{:stale_updates_complete}` when done
   """
-  @spec update_stale_things([String.t()], pid() | nil, non_neg_integer()) ::
-          {:ok, [Thing.t()]} | {:error, atom()}
-  def update_stale_things(thing_ids, progress_pid \\ nil, total_count \\ 0)
+  @spec update_stale_things([String.t()], keyword()) :: {:ok, [Thing.t()]} | {:error, atom()}
+  def update_stale_things(thing_ids, opts \\ [])
 
-  def update_stale_things([], _progress_pid, _total_count), do: {:ok, []}
+  def update_stale_things([], opts) do
+    notify_pid = Keyword.get(opts, :notify_pid)
+    if notify_pid, do: send(notify_pid, {:stale_updates_complete})
+    {:ok, []}
+  end
 
-  def update_stale_things(thing_ids, progress_pid, total_count) when is_list(thing_ids) do
+  def update_stale_things(thing_ids, opts) when is_list(thing_ids) do
     Logger.info("Updating #{length(thing_ids)} stale things from BGG API")
 
-    # Chunk into groups of 20 (BGG API limit)
+    notify_pid = Keyword.get(opts, :notify_pid)
     chunks = Enum.chunk_every(thing_ids, 20)
-    stale_count = length(thing_ids)
-    already_cached = max(0, total_count - stale_count)
 
     try do
       updated_things =
@@ -121,7 +122,6 @@ defmodule Core.BggCacher do
             "Processing chunk #{index + 1}/#{length(chunks)} with #{length(chunk)} items"
           )
 
-          # Rate limiting delay between chunks (except for the first one)
           if index > 0 do
             :timer.sleep(@rate_limit_delay_ms)
           end
@@ -133,20 +133,17 @@ defmodule Core.BggCacher do
 
               {:error, reason} ->
                 Logger.warning("Failed to update chunk #{index + 1}: #{inspect(reason)}")
-                # Continue with other chunks on failure
                 []
             end
 
-          # Send progress update if progress_pid provided
-          if progress_pid && total_count > 60 do
-            loaded_count = already_cached + (index + 1) * 20
-            # Cap loaded_count at total_count
-            loaded_count = min(loaded_count, total_count)
-            send(progress_pid, {:cache_progress, loaded_count, total_count})
+          if notify_pid && result != [] do
+            send(notify_pid, {:chunk_cached, result})
           end
 
           result
         end)
+
+      if notify_pid, do: send(notify_pid, {:stale_updates_complete})
 
       {:ok, updated_things}
     rescue

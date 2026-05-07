@@ -442,6 +442,73 @@ defmodule Core.BggCacherTest do
     end
   end
 
+  describe "update_stale_things chunk notifications" do
+    test "sends {:chunk_cached, things} for each chunk" do
+      stale_ids = ["c1", "c2"]
+
+      mock_things = [
+        build_thing("c1", "Chunk Game 1"),
+        build_thing("c2", "Chunk Game 2")
+      ]
+
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(mock_things)}}
+      end)
+
+      assert {:ok, _} = BggCacher.update_stale_things(stale_ids, notify_pid: self())
+
+      assert_receive {:chunk_cached, things}
+      assert length(things) == 2
+      assert_receive {:stale_updates_complete}
+    end
+
+    test "sends {:stale_updates_complete} even when no stale IDs" do
+      assert {:ok, []} = BggCacher.update_stale_things([], notify_pid: self())
+      assert_receive {:stale_updates_complete}
+    end
+
+    test "sends {:chunk_cached, things} per chunk for multiple chunks" do
+      stale_ids = for i <- 1..25, do: "m#{i}"
+
+      first_chunk = for i <- 1..20, do: build_thing("m#{i}", "Game #{i}")
+      second_chunk = for i <- 21..25, do: build_thing("m#{i}", "Game #{i}")
+
+      Core.MockReqClient
+      |> expect(:get, 2, fn _url, params, _headers ->
+        id_param = params[:id] || params["id"]
+        ids = String.split(to_string(id_param), ",")
+
+        case length(ids) do
+          20 -> {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(first_chunk)}}
+          5 -> {:ok, %Req.Response{status: 200, body: mock_bgg_things_xml(second_chunk)}}
+        end
+      end)
+
+      assert {:ok, _} = BggCacher.update_stale_things(stale_ids, notify_pid: self())
+
+      assert_receive {:chunk_cached, chunk1}
+      assert length(chunk1) == 20
+      assert_receive {:chunk_cached, chunk2}
+      assert length(chunk2) == 5
+      assert_receive {:stale_updates_complete}
+    end
+
+    test "does not send {:chunk_cached, _} on failed chunk" do
+      stale_ids = ["fail1"]
+
+      Core.MockReqClient
+      |> expect(:get, 1, fn _url, _params, _headers ->
+        {:error, %RuntimeError{message: "API failure"}}
+      end)
+
+      assert {:ok, _} = BggCacher.update_stale_things(stale_ids, notify_pid: self())
+
+      refute_receive {:chunk_cached, _}
+      assert_receive {:stale_updates_complete}
+    end
+  end
+
   describe "get_all_cached_things/5" do
     test "returns only fresh things, excludes stale" do
       _fresh = insert_fresh_thing("fresh1")
