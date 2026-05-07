@@ -36,7 +36,7 @@ defmodule Web.Router do
   scope "/admin", Web do
     pipe_through :admin
 
-    live "/precache", PrecacheDashboardLive, :index
+    live "/jobs", JobsDashboardLive, :index
   end
 
   defp admin_basic_auth(conn, _opts) do
