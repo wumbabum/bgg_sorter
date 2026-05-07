@@ -11,7 +11,10 @@ defmodule Web.JobsDashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Process.send_after(self(), :refresh, @refresh_interval_ms)
+    if connected?(socket) do
+      Process.send_after(self(), :refresh, @refresh_interval_ms)
+      Phoenix.PubSub.subscribe(Web.PubSub, "dispatch:jobs")
+    end
 
     workers = Dispatch.available_workers()
     default_key = if workers != [], do: hd(workers).key, else: nil
@@ -29,6 +32,11 @@ defmodule Web.JobsDashboardLive do
   @impl true
   def handle_info(:refresh, socket) do
     Process.send_after(self(), :refresh, @refresh_interval_ms)
+    {:noreply, assign(socket, :jobs, load_jobs())}
+  end
+
+  @impl true
+  def handle_info(:job_updated, socket) do
     {:noreply, assign(socket, :jobs, load_jobs())}
   end
 

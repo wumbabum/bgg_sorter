@@ -26,6 +26,7 @@ defmodule Dispatch.MixProject do
   defp deps do
     [
       {:oban, "~> 2.19"},
+      {:phoenix_pubsub, "~> 2.1"},
       {:core, in_umbrella: true}
     ]
   end

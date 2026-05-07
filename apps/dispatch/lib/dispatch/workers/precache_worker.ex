@@ -40,6 +40,8 @@ defmodule Dispatch.Workers.PrecacheWorker do
 
     record_results(job.id, job.meta, summary)
 
+    Phoenix.PubSub.broadcast(Web.PubSub, "dispatch:jobs", :job_updated)
+
     :ok
   end
 
