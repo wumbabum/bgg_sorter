@@ -40,6 +40,11 @@
             <div class="loading-svg-wrapper">
               <Web.Components.LoadingSpinnerComponent.spinner />
             </div>
+            <%= if @cache_progress.total > 0 do %>
+              <div class="loading-text">
+                {@cache_progress.total - @stale_remaining} out of {@cache_progress.total} games loaded
+              </div>
+            <% end %>
           </div>
         <% @search_error -> %>
           <div class="error-container">
@@ -94,7 +99,7 @@
 
           <%= if @background_loading do %>
             <div class="background-loading-banner">
-              <span>Loading {@stale_remaining} more games...</span>
+              <span>{@cache_progress.total - @stale_remaining} out of {@cache_progress.total} games loaded</span>
             </div>
           <% end %>
 

@@ -14,6 +14,16 @@ defmodule Web.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :admin do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {Web.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :admin_basic_auth
+  end
+
   scope "/", Web do
     pipe_through :browser
 
@@ -21,6 +31,18 @@ defmodule Web.Router do
     # Home page with optional advanced search
     live "/collection", CollectionLive, :index
     live "/collection/:username", CollectionLive, :show
+  end
+
+  scope "/admin", Web do
+    pipe_through :admin
+
+    live "/precache", PrecacheDashboardLive, :index
+  end
+
+  defp admin_basic_auth(conn, _opts) do
+    username = Application.get_env(:web, :admin_username, "admin")
+    password = Application.get_env(:web, :admin_password, "changeme")
+    Plug.BasicAuth.basic_auth(conn, username: username, password: password)
   end
 
   # Other scopes may use custom stacks.

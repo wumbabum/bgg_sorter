@@ -16,6 +16,10 @@ case config_env() do
   :prod ->
     config :core, Core.BggGateway, bgg_api_key: System.fetch_env!("BGG_API_KEY")
 
+    config :web,
+      admin_username: System.get_env("ADMIN_USERNAME", "admin"),
+      admin_password: System.fetch_env!("ADMIN_PASSWORD")
+
     maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
     config :core, Core.Repo,
