@@ -9,7 +9,7 @@ defmodule BggSorter.MixProject do
       releases: releases(),
       deps: deps(),
       aliases: aliases(),
-      apps: [:core, :web]
+      apps: [:core, :web, :dispatch]
     ]
   end
 
@@ -38,7 +38,8 @@ defmodule BggSorter.MixProject do
       bgg_sorter: [
         applications: [
           core: :permanent,
-          web: :permanent
+          web: :permanent,
+          dispatch: :permanent
         ]
       ]
     ]

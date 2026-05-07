@@ -77,6 +77,18 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Oban configuration for dispatch app
+config :dispatch, Oban,
+  repo: Core.Repo,
+  queues: [precache: 1],
+  plugins: [
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"0 4 * * *", Dispatch.Workers.PrecacheWorker, max_attempts: 1}
+     ]},
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30}
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
