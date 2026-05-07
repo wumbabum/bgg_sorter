@@ -1,4 +1,4 @@
-defmodule Web.PrecacheDashboardLive do
+defmodule Web.JobsDashboardLive do
   @moduledoc """
   Dashboard for viewing past precache cron job runs.
   """
