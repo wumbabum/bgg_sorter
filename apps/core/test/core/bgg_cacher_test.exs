@@ -37,7 +37,7 @@ defmodule Core.BggCacherTest do
 
     test "returns IDs for things with stale last_cached" do
       # Create thing with stale cache (older than 1 week)
-      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      stale_time = DateTime.add(DateTime.utc_now(), -(100 * 24 * 60 * 60), :second)
       stale_thing = insert_thing_with_cache("123", stale_time)
 
       # Create fresh thing (within 1 week)
@@ -51,7 +51,7 @@ defmodule Core.BggCacherTest do
 
     test "combines stale, nil, and missing IDs correctly" do
       # Stale thing
-      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      stale_time = DateTime.add(DateTime.utc_now(), -(100 * 24 * 60 * 60), :second)
       stale_thing = insert_thing_with_cache("stale", stale_time)
 
       # Never cached thing
@@ -98,7 +98,7 @@ defmodule Core.BggCacherTest do
       fresh_old_schema = insert_thing_with_schema_version("fresh_old", 1)
 
       # Stale time but current schema version
-      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      stale_time = DateTime.add(DateTime.utc_now(), -(100 * 24 * 60 * 60), :second)
       stale_current_schema = insert_thing_with_cache("stale_current", stale_time)
 
       # Fresh time and current schema version
@@ -361,7 +361,7 @@ defmodule Core.BggCacherTest do
 
     test "fetches and caches stale things" do
       # Create stale thing in database
-      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      stale_time = DateTime.add(DateTime.utc_now(), -(100 * 24 * 60 * 60), :second)
       _stale_thing = insert_thing_with_cache("stale", stale_time)
 
       input_things = [%Thing{id: "stale", type: "boardgame"}]
@@ -390,7 +390,7 @@ defmodule Core.BggCacherTest do
       _fresh_thing = insert_fresh_thing("fresh")
 
       # Stale thing
-      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      stale_time = DateTime.add(DateTime.utc_now(), -(100 * 24 * 60 * 60), :second)
       _stale_thing = insert_thing_with_cache("stale", stale_time)
 
       input_things = [
@@ -514,7 +514,7 @@ defmodule Core.BggCacherTest do
       _fresh = insert_fresh_thing("fresh1")
       _fresh2 = insert_fresh_thing("fresh2")
 
-      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      stale_time = DateTime.add(DateTime.utc_now(), -(100 * 24 * 60 * 60), :second)
       _stale = insert_thing_with_cache("stale1", stale_time)
 
       _never_cached = insert_thing_without_cache("never1")
