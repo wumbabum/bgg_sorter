@@ -26,6 +26,7 @@ COPY mix.exs mix.lock ./
 COPY config config
 COPY apps/core/mix.exs apps/core/
 COPY apps/web/mix.exs apps/web/
+COPY apps/dispatch/mix.exs apps/dispatch/
 RUN mix deps.get --only=prod
 
 # Compile dependencies
