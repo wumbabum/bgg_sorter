@@ -21,6 +21,9 @@ defmodule Web.Router do
     # Home page with optional advanced search
     live "/collection", CollectionLive, :index
     live "/collection/:username", CollectionLive, :show
+
+    # Admin dashboard
+    live "/admin/precache", PrecacheDashboardLive, :index
   end
 
   # Other scopes may use custom stacks.

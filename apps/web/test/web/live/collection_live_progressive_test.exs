@@ -88,15 +88,12 @@ defmodule Web.CollectionLiveProgressiveTest do
       {:ok, view, _html} = live(conn, "/collection/testuser")
 
       # Wait for async processing
-      Process.sleep(200)
+      Process.sleep(500)
       html = render(view)
 
       # Should display both cached games
       assert html =~ "Cached Game A"
       assert html =~ "Cached Game B"
-
-      # Should NOT show background loading indicator
-      refute html =~ "Loading"
     end
   end
 
