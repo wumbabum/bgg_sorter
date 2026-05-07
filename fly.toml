@@ -10,7 +10,7 @@ primary_region = 'sjc'
   dockerfile = 'Dockerfile'
 
 [deploy]
-  # release_command = './bin/bgg_sorter eval Core.Release.migrate_and_seed()'
+  release_command = './bin/bgg_sorter eval "Core.Release.migrate_and_seed()"'
 
 [env]
   ECTO_IPV6 = 'true'
