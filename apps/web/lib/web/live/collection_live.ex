@@ -443,39 +443,40 @@ defmodule Web.CollectionLive do
 
       liveview_pid = self()
 
-      # Task does: get stale IDs → send cached things → fetch stale chunks progressively
-      _task =
-        Task.async(fn ->
-          try do
-            with {:ok, stale_ids} <- Core.BggCacher.get_stale_thing_ids(thing_ids) do
-              # Send cached things immediately
-              Core.BggCacher.get_all_cached_things(
-                thing_ids, %{}, :primary_name, :asc,
-                notify_pid: liveview_pid
-              )
+      # Use Task.start (not Task.async) so the task survives LiveView disconnect.
+      # If the user leaves mid-load, the task keeps running and caches things in DB
+      # for future sessions. Messages to the dead LiveView PID are silently dropped.
+      Task.start(fn ->
+        try do
+          with {:ok, stale_ids} <- Core.BggCacher.get_stale_thing_ids(thing_ids) do
+            # Send cached things immediately
+            Core.BggCacher.get_all_cached_things(
+              thing_ids, %{}, :primary_name, :asc,
+              notify_pid: liveview_pid
+            )
 
-              # Tell LiveView how many stale items to expect
-              send(liveview_pid, {:stale_count, length(stale_ids)})
+            # Tell LiveView how many stale items to expect
+            send(liveview_pid, {:stale_count, length(stale_ids)})
 
-              # Fetch stale things progressively — sends {:chunk_cached, things} per chunk
-              Core.BggCacher.update_stale_things(
-                stale_ids,
-                notify_pid: liveview_pid
-              )
-            else
-              {:error, reason} ->
-                send(liveview_pid, {:cache_error, self(), reason})
-            end
-          rescue
-            error ->
-              Logger.error("Cache loading crashed: #{inspect(error)}")
-              send(liveview_pid, {:cache_error, self(), {:exception, error}})
-          catch
-            kind, value ->
-              Logger.error("Cache loading caught #{kind}: #{inspect(value)}")
-              send(liveview_pid, {:cache_error, self(), {kind, value}})
+            # Fetch stale things progressively — sends {:chunk_cached, things} per chunk
+            Core.BggCacher.update_stale_things(
+              stale_ids,
+              notify_pid: liveview_pid
+            )
+          else
+            {:error, reason} ->
+              send(liveview_pid, {:cache_error, self(), reason})
           end
-        end)
+        rescue
+          error ->
+            Logger.error("Cache loading crashed: #{inspect(error)}")
+            send(liveview_pid, {:cache_error, self(), {:exception, error}})
+        catch
+          kind, value ->
+            Logger.error("Cache loading caught #{kind}: #{inspect(value)}")
+            send(liveview_pid, {:cache_error, self(), {kind, value}})
+        end
+      end)
 
       {:noreply, socket}
     else
