@@ -35,16 +35,11 @@
       </div>
 
       <%= cond do %>
-        <% @collection_loading -> %>
+        <% @collection_loading and Enum.empty?(@collection_items) -> %>
           <div class="loading-container">
             <div class="loading-svg-wrapper">
               <Web.Components.LoadingSpinnerComponent.spinner />
             </div>
-            <%= if @cache_progress.total > 60 do %>
-              <div class="loading-text">
-                Loading {@cache_progress.loaded} out of {@cache_progress.total} games...
-              </div>
-            <% end %>
           </div>
         <% @search_error -> %>
           <div class="error-container">
@@ -96,6 +91,12 @@
               <% end %>
             </tbody>
           </table>
+
+          <%= if @background_loading do %>
+            <div class="background-loading-banner">
+              <span>Loading {@stale_remaining} more games...</span>
+            </div>
+          <% end %>
 
           <Web.Components.PaginationComponent.pagination
             current_page={@current_page}

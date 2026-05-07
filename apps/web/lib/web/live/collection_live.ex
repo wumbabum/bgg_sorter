@@ -70,6 +70,9 @@ defmodule Web.CollectionLive do
       |> assign(:pending_modal_thing_id, nil)
       |> assign(:pending_refilter, nil)
       |> assign(:cache_progress, %{loaded: 0, total: 0})
+      |> assign(:background_loading, false)
+      |> assign(:stale_remaining, 0)
+      |> assign(:all_thing_ids, [])
 
     # Check for modal_thing_id and set up modal state
     socket =
@@ -134,6 +137,9 @@ defmodule Web.CollectionLive do
       |> assign(:pending_modal_thing_id, nil)
       |> assign(:pending_refilter, nil)
       |> assign(:cache_progress, %{loaded: 0, total: 0})
+      |> assign(:background_loading, false)
+      |> assign(:stale_remaining, 0)
+      |> assign(:all_thing_ids, [])
 
     {:ok, socket}
   end
@@ -423,53 +429,54 @@ defmodule Web.CollectionLive do
   @impl true
   def handle_info({:load_collection_with_filters, username, filters}, socket) do
     Logger.info("Loading collection with filters: #{inspect(filters)}")
-    # Convert client filters to BGG API parameters
     bgg_params = convert_filters_to_bgg_params(filters)
     Logger.info("BGG API params: #{inspect(bgg_params)}")
 
-    # Note: Mechanics filtering is now done client-side after cache loading
-
     with {:ok, %CollectionResponse{items: basic_items}} <-
            Core.BggGateway.collection(username, bgg_params) do
-      # Initialize progress tracking
-      socket = assign(socket, :cache_progress, %{loaded: 0, total: length(basic_items)})
+      thing_ids = Enum.map(basic_items, & &1.id)
 
-      # Capture LiveView PID before spawning Task
+      socket =
+        socket
+        |> assign(:all_thing_ids, thing_ids)
+        |> assign(:cache_progress, %{loaded: 0, total: length(basic_items)})
+
       liveview_pid = self()
 
-      # Start async cache loading in isolated Task
+      # Task does: get stale IDs → send cached things → fetch stale chunks progressively
       _task =
         Task.async(fn ->
           try do
-            case Core.BggCacher.load_things_cache(
-                   basic_items,
-                   %{},
-                   :primary_name,
-                   :asc,
-                   progress_pid: liveview_pid
-                 ) do
-              {:ok, items} ->
-                send(liveview_pid, {:cache_loaded, self(), items})
-                {:ok, items}
+            with {:ok, stale_ids} <- Core.BggCacher.get_stale_thing_ids(thing_ids) do
+              # Send cached things immediately
+              Core.BggCacher.get_all_cached_things(
+                thing_ids, %{}, :primary_name, :asc,
+                notify_pid: liveview_pid
+              )
 
-              {:error, reason} = error ->
+              # Tell LiveView how many stale items to expect
+              send(liveview_pid, {:stale_count, length(stale_ids)})
+
+              # Fetch stale things progressively — sends {:chunk_cached, things} per chunk
+              Core.BggCacher.update_stale_things(
+                stale_ids,
+                notify_pid: liveview_pid
+              )
+            else
+              {:error, reason} ->
                 send(liveview_pid, {:cache_error, self(), reason})
-                error
             end
           rescue
             error ->
               Logger.error("Cache loading crashed: #{inspect(error)}")
               send(liveview_pid, {:cache_error, self(), {:exception, error}})
-              {:error, {:exception, error}}
           catch
             kind, value ->
               Logger.error("Cache loading caught #{kind}: #{inspect(value)}")
               send(liveview_pid, {:cache_error, self(), {kind, value}})
-              {:error, {kind, value}}
           end
         end)
 
-      # Task will send {:cache_progress, loaded, total}, {:cache_loaded, task_pid, items} or {:cache_error, task_pid, reason}
       {:noreply, socket}
     else
       {:error, reason} ->
@@ -486,9 +493,83 @@ defmodule Web.CollectionLive do
   end
 
   @impl true
-  def handle_info({:cache_progress, loaded, total}, socket) do
-    # Update progress tracking
-    socket = assign(socket, :cache_progress, %{loaded: loaded, total: total})
+  def handle_info({:cached_things_loaded, things}, socket) do
+    Logger.info("Received #{length(things)} cached things for immediate display")
+
+    client_filters = extract_client_only_filters(socket.assigns.filters)
+
+    socket =
+      socket
+      |> assign(:original_collection_items, things)
+      |> assign(:collection_loading, false)
+      |> assign(:search_error, nil)
+      |> apply_client_side_filters(client_filters)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:stale_count, count}, socket) do
+    socket =
+      if count > 0 do
+        socket
+        |> assign(:background_loading, true)
+        |> assign(:stale_remaining, count)
+      else
+        socket
+        |> assign(:background_loading, false)
+        |> assign(:stale_remaining, 0)
+      end
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:chunk_cached, chunk_things}, socket) do
+    Logger.info("Received chunk with #{length(chunk_things)} newly cached things")
+
+    all_thing_ids = socket.assigns.all_thing_ids
+    stale_remaining = max(0, socket.assigns.stale_remaining - length(chunk_things))
+
+    # Re-query DB for proper sort order with all accumulated IDs
+    sort_field = socket.assigns.sort_by
+    sort_direction = socket.assigns.sort_direction
+
+    {:ok, sorted_things} =
+      Core.BggCacher.get_all_cached_things(all_thing_ids, %{}, sort_field, sort_direction)
+
+    client_filters = extract_client_only_filters(socket.assigns.filters)
+
+    socket =
+      socket
+      |> assign(:original_collection_items, sorted_things)
+      |> assign(:stale_remaining, stale_remaining)
+      |> apply_client_side_filters(client_filters)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:stale_updates_complete}, socket) do
+    Logger.info("All stale updates complete")
+
+    # Final re-query to ensure everything is sorted correctly
+    all_thing_ids = socket.assigns.all_thing_ids
+    sort_field = socket.assigns.sort_by
+    sort_direction = socket.assigns.sort_direction
+
+    {:ok, sorted_things} =
+      Core.BggCacher.get_all_cached_things(all_thing_ids, %{}, sort_field, sort_direction)
+
+    client_filters = extract_client_only_filters(socket.assigns.filters)
+
+    socket =
+      socket
+      |> assign(:original_collection_items, sorted_things)
+      |> assign(:background_loading, false)
+      |> assign(:stale_remaining, 0)
+      |> apply_client_side_filters(client_filters)
+
     {:noreply, socket}
   end
 
