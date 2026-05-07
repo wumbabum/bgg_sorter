@@ -156,27 +156,45 @@ defmodule Core.BggCacher do
     end
   end
 
-  # Private function to retrieve all cached things for the given IDs from database.
-  # Optionally applies database-level filtering and sorting for performance.
-  @spec get_all_cached_things([String.t()], map(), atom(), atom()) ::
+  @doc """
+  Retrieves fresh cached things from the database for the given IDs.
+  Only returns things within cache TTL and with current schema version.
+  Applies filters and sorting at the database level.
+
+  Options:
+  - `:notify_pid` - PID to send `{:cached_things_loaded, things}` to after query completes
+  """
+  @spec get_all_cached_things([String.t()], map(), atom(), atom(), keyword()) ::
           {:ok, [Thing.t()]} | {:error, atom()}
-  defp get_all_cached_things(
-         thing_ids,
-         filters,
-         sort_field,
-         sort_direction
-       )
-       when is_list(thing_ids) do
+  def get_all_cached_things(
+        thing_ids,
+        filters \\ %{},
+        sort_field \\ :primary_name,
+        sort_direction \\ :asc,
+        opts \\ []
+      )
+      when is_list(thing_ids) do
+    cache_cutoff =
+      DateTime.add(DateTime.utc_now(), -(@cache_ttl_weeks * 7 * 24 * 60 * 60), :second)
+
+    notify_pid = Keyword.get(opts, :notify_pid)
+
     try do
       cached_things =
         from(t in Thing,
           where: t.id in ^thing_ids,
-          # Preload mechanics to prevent N+1 queries
+          where:
+            not is_nil(t.last_cached) and
+              t.last_cached >= ^cache_cutoff and
+              not is_nil(t.schema_version) and
+              t.schema_version >= ^@current_schema_version,
           preload: [:mechanics]
         )
         |> with_filters(filters)
         |> with_sorting(sort_field, sort_direction)
         |> Core.Repo.all()
+
+      if notify_pid, do: send(notify_pid, {:cached_things_loaded, cached_things})
 
       {:ok, cached_things}
     rescue

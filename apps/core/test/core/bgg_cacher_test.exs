@@ -111,8 +111,6 @@ defmodule Core.BggCacherTest do
     end
   end
 
-  # Note: get_all_cached_things is now private and tested through load_things_cache
-
   describe "update_stale_things/1" do
     test "returns ok with empty list for no stale IDs" do
       assert {:ok, []} = BggCacher.update_stale_things([])
@@ -441,6 +439,69 @@ defmodule Core.BggCacherTest do
       assert updated_thing.primary_name == "Updated Schema Game"
       # Should have updated schema version
       assert updated_thing.schema_version == 3
+    end
+  end
+
+  describe "get_all_cached_things/5" do
+    test "returns only fresh things, excludes stale" do
+      _fresh = insert_fresh_thing("fresh1")
+      _fresh2 = insert_fresh_thing("fresh2")
+
+      stale_time = DateTime.add(DateTime.utc_now(), -(8 * 24 * 60 * 60), :second)
+      _stale = insert_thing_with_cache("stale1", stale_time)
+
+      _never_cached = insert_thing_without_cache("never1")
+
+      all_ids = ["fresh1", "fresh2", "stale1", "never1"]
+
+      assert {:ok, results} = BggCacher.get_all_cached_things(all_ids)
+      result_ids = Enum.map(results, & &1.id) |> Enum.sort()
+      assert result_ids == ["fresh1", "fresh2"]
+    end
+
+    test "excludes things with outdated schema version" do
+      _fresh = insert_fresh_thing("current")
+      _old = insert_thing_with_schema_version("old", 1)
+
+      assert {:ok, results} = BggCacher.get_all_cached_things(["current", "old"])
+      assert length(results) == 1
+      assert hd(results).id == "current"
+    end
+
+    test "applies filters and sorting" do
+      {:ok, _} = Thing.upsert_thing(%{"id" => "a", "type" => "boardgame", "primary_name" => "Alpha", "average" => "9.0"})
+      {:ok, _} = Thing.upsert_thing(%{"id" => "b", "type" => "boardgame", "primary_name" => "Beta", "average" => "6.0"})
+
+      assert {:ok, filtered} = BggCacher.get_all_cached_things(["a", "b"], %{average: "8.0"}, :primary_name, :asc)
+      assert length(filtered) == 1
+      assert hd(filtered).primary_name == "Alpha"
+
+      assert {:ok, sorted} = BggCacher.get_all_cached_things(["a", "b"], %{}, :primary_name, :desc)
+      names = Enum.map(sorted, & &1.primary_name)
+      assert names == ["Beta", "Alpha"]
+    end
+
+    test "sends {:cached_things_loaded, things} to notify_pid" do
+      _fresh = insert_fresh_thing("notified")
+
+      assert {:ok, _} = BggCacher.get_all_cached_things(["notified"], %{}, :primary_name, :asc, notify_pid: self())
+
+      assert_receive {:cached_things_loaded, things}
+      assert length(things) == 1
+      assert hd(things).id == "notified"
+    end
+
+    test "does not send message when notify_pid is not provided" do
+      _fresh = insert_fresh_thing("quiet")
+
+      assert {:ok, _} = BggCacher.get_all_cached_things(["quiet"])
+
+      refute_receive {:cached_things_loaded, _}
+    end
+
+    test "returns empty list for IDs not in database" do
+      assert {:ok, results} = BggCacher.get_all_cached_things(["nonexistent"])
+      assert results == []
     end
   end
 
