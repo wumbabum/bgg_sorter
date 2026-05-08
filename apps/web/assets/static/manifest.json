@@ -1,0 +1,17 @@
+{
+  "name": "BGG Sorter",
+  "short_name": "BGG Sorter",
+  "description": "Board Game Collection Browser",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#3f3f74",
+  "theme_color": "#3f3f74",
+  "icons": [
+    {
+      "src": "/images/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
