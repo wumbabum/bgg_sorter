@@ -40,6 +40,7 @@ defmodule Web.MixProject do
     [
       # internal dependencies
       {:core, in_umbrella: true},
+      {:dispatch, in_umbrella: true},
       # external dependencies
       {:phoenix, "~> 1.8.1"},
       {:phoenix_html, "~> 4.1"},
