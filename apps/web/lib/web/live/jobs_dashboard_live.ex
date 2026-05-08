@@ -99,9 +99,9 @@ defmodule Web.JobsDashboardLive do
               <th style="padding: 8px;">Date</th>
               <th style="padding: 8px;">Worker</th>
               <th style="padding: 8px;">Status</th>
-              <th style="padding: 8px;">Requested</th>
+              <th style="padding: 8px;">Duration</th>
               <th style="padding: 8px;">Cached</th>
-              <th style="padding: 8px;">Failed</th>
+              <th style="padding: 8px;">Message</th>
               <th style="padding: 8px;">Attempt</th>
             </tr>
           </thead>
@@ -111,9 +111,9 @@ defmodule Web.JobsDashboardLive do
                 <td style="padding: 8px;"><%= format_datetime(job.inserted_at) %></td>
                 <td style="padding: 8px;"><%= short_worker_name(job.worker) %></td>
                 <td style="padding: 8px;"><%= status_badge(job.state) %></td>
-                <td style="padding: 8px;"><%= get_result(job, "total_requested") %></td>
+                <td style="padding: 8px;"><%= format_duration(job) %></td>
                 <td style="padding: 8px;"><%= get_result(job, "total_cached") %></td>
-                <td style="padding: 8px;"><%= get_result(job, "total_failed") %></td>
+                <td style="padding: 8px; max-width: 300px; overflow: hidden; text-overflow: ellipsis;"><%= job_message(job) %></td>
                 <td style="padding: 8px;"><%= job.attempt %>/<%= job.max_attempts %></td>
               </tr>
             <% end %>
@@ -138,9 +138,12 @@ defmodule Web.JobsDashboardLive do
         worker: j.worker,
         state: j.state,
         inserted_at: j.inserted_at,
+        attempted_at: j.attempted_at,
+        completed_at: j.completed_at,
         attempt: j.attempt,
         max_attempts: j.max_attempts,
-        meta: j.meta
+        meta: j.meta,
+        errors: j.errors
       }
     )
     |> Core.Repo.all()
@@ -165,10 +168,46 @@ defmodule Web.JobsDashboardLive do
   defp status_badge("executing"), do: "🔄 Running"
   defp status_badge("available"), do: "⏳ Queued"
   defp status_badge("scheduled"), do: "📅 Scheduled"
-  defp status_badge("retryable"), do: "🔁 Retryable"
-  defp status_badge("discarded"), do: "❌ Discarded"
+  defp status_badge("retryable"), do: "❌ Failed"
+  defp status_badge("discarded"), do: "❌ Failed"
   defp status_badge("cancelled"), do: "🚫 Cancelled"
   defp status_badge(state), do: state
+
+  defp format_duration(%{state: "executing", attempted_at: started}) when not is_nil(started) do
+    seconds = DateTime.diff(DateTime.utc_now(), started, :second)
+    format_seconds(seconds) <> "..."
+  end
+
+  defp format_duration(%{attempted_at: started, completed_at: finished})
+       when not is_nil(started) and not is_nil(finished) do
+    format_seconds(DateTime.diff(finished, started, :second))
+  end
+
+  defp format_duration(_), do: "—"
+
+  defp format_seconds(s) when s < 60, do: "#{s}s"
+  defp format_seconds(s) when s < 3600, do: "#{div(s, 60)}m #{rem(s, 60)}s"
+  defp format_seconds(s), do: "#{div(s, 3600)}h #{div(rem(s, 3600), 60)}m"
+
+  defp job_message(%{state: state, errors: errors}) when state in ["retryable", "discarded"] and is_list(errors) and errors != [] do
+    errors |> List.last() |> Map.get("message", "Unknown error") |> String.slice(0, 100)
+  end
+
+  defp job_message(%{meta: meta}) when is_map(meta) do
+    results = Map.get(meta, "results", %{})
+
+    parts = []
+    parts = if results["end_of_list"], do: ["Reached end of list" | parts], else: parts
+    parts = if results["total_failed"] && results["total_failed"] > 0, do: ["#{results["total_failed"]} failed" | parts], else: parts
+    parts = if results["total_requested"] == 0, do: ["All games cached" | parts], else: parts
+
+    case parts do
+      [] -> "—"
+      _ -> Enum.join(parts, ", ")
+    end
+  end
+
+  defp job_message(_), do: "—"
 
   defp get_result(%{meta: meta}, key) when is_map(meta) do
     case get_in(meta, ["results", key]) do
