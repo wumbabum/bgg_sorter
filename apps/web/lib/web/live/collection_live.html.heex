@@ -35,7 +35,7 @@
       </div>
 
       <%= cond do %>
-        <% @collection_loading and Enum.empty?(@collection_items) -> %>
+        <% (@collection_loading or @background_loading) and Enum.empty?(@collection_items) -> %>
           <div class="loading-container">
             <div class="loading-svg-wrapper">
               <Web.Components.LoadingSpinnerComponent.spinner />
