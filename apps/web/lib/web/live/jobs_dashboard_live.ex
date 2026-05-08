@@ -174,13 +174,13 @@ defmodule Web.JobsDashboardLive do
   defp status_badge(state), do: state
 
   defp format_duration(%{state: "executing", attempted_at: started}) when not is_nil(started) do
-    seconds = DateTime.diff(DateTime.utc_now(), started, :second)
+    seconds = NaiveDateTime.diff(NaiveDateTime.utc_now(), started, :second)
     format_seconds(seconds) <> "..."
   end
 
   defp format_duration(%{attempted_at: started, completed_at: finished})
        when not is_nil(started) and not is_nil(finished) do
-    format_seconds(DateTime.diff(finished, started, :second))
+    format_seconds(NaiveDateTime.diff(finished, started, :second))
   end
 
   defp format_duration(_), do: "—"
