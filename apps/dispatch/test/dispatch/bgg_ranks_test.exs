@@ -59,29 +59,50 @@ defmodule Dispatch.BggRanksTest do
       :ok
     end
 
-    test "returns uncached IDs sorted by rank" do
-      # All games in the real CSV should be uncached (empty DB)
-      # This test uses the real CSV file
-      results = BggRanks.uncached_top_n(5)
+    test "returns {:ok, ids} with uncached IDs sorted by rank" do
+      assert {:ok, results} = BggRanks.uncached_top_n(5)
 
-      # Should return up to 5 IDs
       assert length(results) <= 5
-      assert is_list(results)
       assert Enum.all?(results, &is_binary/1)
     end
 
     test "excludes already cached games" do
-      # Cache one game
       {:ok, _} = Core.Schemas.Thing.upsert_thing(%{
         "id" => "224517",
         "type" => "boardgame",
         "primary_name" => "Brass: Birmingham"
       })
 
-      results = BggRanks.uncached_top_n(5)
+      assert {:ok, results} = BggRanks.uncached_top_n(5)
 
-      # Brass: Birmingham (224517) should NOT be in the results
       refute "224517" in results
+    end
+
+    test "returns {:error, :end_of_list} when all games are cached" do
+      # Use the sample CSV which has only 4 base games
+      # Cache all 4
+      for {id, name} <- [{"224517", "Brass"}, {"342942", "Ark Nova"}, {"161936", "Pandemic"}, {"174430", "Gloomhaven"}] do
+        {:ok, _} = Core.Schemas.Thing.upsert_thing(%{"id" => id, "type" => "boardgame", "primary_name" => name})
+      end
+
+      assert {:error, :end_of_list} = BggRanks.uncached_top_n_from_path(@sample_csv, 5)
+    end
+
+    test "skips cached games and continues scanning for uncached ones" do
+      # Cache the #1 ranked game
+      {:ok, _} = Core.Schemas.Thing.upsert_thing(%{
+        "id" => "224517",
+        "type" => "boardgame",
+        "primary_name" => "Brass: Birmingham"
+      })
+
+      assert {:ok, results} = BggRanks.uncached_top_n_from_path(@sample_csv, 3)
+
+      # Should have 3 uncached games (skipping Brass)
+      assert length(results) == 3
+      refute "224517" in results
+      # Should start with the next ranked uncached game
+      assert hd(results) == "342942"
     end
   end
 end

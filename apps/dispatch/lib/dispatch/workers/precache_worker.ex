@@ -22,7 +22,12 @@ defmodule Dispatch.Workers.PrecacheWorker do
 
     Logger.info("PrecacheWorker starting: fetching top #{limit} uncached games")
 
-    uncached_ids = Dispatch.BggRanks.uncached_top_n(limit)
+    {uncached_ids, end_of_list?} =
+      case Dispatch.BggRanks.uncached_top_n(limit) do
+        {:ok, ids} -> {ids, false}
+        {:error, :end_of_list} -> {[], true}
+      end
+
     total_requested = length(uncached_ids)
 
     Logger.info("Found #{total_requested} uncached games to fetch")
@@ -33,6 +38,7 @@ defmodule Dispatch.Workers.PrecacheWorker do
       "total_requested" => total_requested,
       "total_cached" => results.cached_count,
       "total_failed" => results.failed_count,
+      "end_of_list" => end_of_list?,
       "completed_at" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
 

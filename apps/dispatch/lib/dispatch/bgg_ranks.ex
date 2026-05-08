@@ -36,28 +36,54 @@ defmodule Dispatch.BggRanks do
     end
   end
 
+  @batch_size 100
+
   @doc """
   Returns the top N uncached game IDs sorted by rank.
-  Games already freshly cached in the DB are excluded.
+  Streams the CSV in batches of #{@batch_size}, querying the DB for each batch
+  to find uncached IDs. Stops as soon as N uncached IDs are accumulated.
+  Returns {:ok, ids} or {:error, :end_of_list} if the CSV is exhausted.
   """
-  @spec uncached_top_n(non_neg_integer()) :: [String.t()]
-  def uncached_top_n(n) do
-    all_ids =
-      parse_ranks()
-      |> Enum.map(& &1.id)
+  @spec uncached_top_n(non_neg_integer()) :: {:ok, [String.t()]} | {:error, :end_of_list}
+  def uncached_top_n(n), do: uncached_top_n_from_path(@csv_path, n)
 
-    case Core.BggCacher.get_stale_thing_ids(all_ids) do
-      {:ok, stale_ids} ->
-        stale_set = MapSet.new(stale_ids)
+  @doc "Same as uncached_top_n/1 but reads from a specific path. Useful for testing."
+  @spec uncached_top_n_from_path(String.t(), non_neg_integer()) ::
+          {:ok, [String.t()]} | {:error, :end_of_list}
+  def uncached_top_n_from_path(path, n) do
+    path
+    |> File.stream!()
+    |> Stream.drop(1)
+    |> Stream.flat_map(&parse_row/1)
+    |> Stream.map(& &1.id)
+    |> Stream.chunk_every(@batch_size)
+    |> Enum.reduce_while([], fn batch_ids, acc ->
+      case Core.BggCacher.get_stale_thing_ids(batch_ids) do
+        {:ok, stale_ids} ->
+          stale_set = MapSet.new(stale_ids)
 
-        # Return top N from ranked list that are stale/uncached
-        all_ids
-        |> Enum.filter(&MapSet.member?(stale_set, &1))
-        |> Enum.take(n)
+          # Keep only uncached IDs, preserving rank order from the batch
+          new_uncached =
+            batch_ids
+            |> Enum.filter(&MapSet.member?(stale_set, &1))
 
-      {:error, reason} ->
-        Logger.error("Failed to get stale thing IDs: #{inspect(reason)}")
-        []
+          updated_acc = acc ++ new_uncached
+
+          if length(updated_acc) >= n do
+            {:halt, {:ok, Enum.take(updated_acc, n)}}
+          else
+            {:cont, updated_acc}
+          end
+
+        {:error, reason} ->
+          Logger.error("Failed to get stale thing IDs: #{inspect(reason)}")
+          {:cont, acc}
+      end
+    end)
+    |> case do
+      {:ok, ids} -> {:ok, ids}
+      acc when is_list(acc) and acc != [] -> {:ok, acc}
+      [] -> {:error, :end_of_list}
     end
   end
 
