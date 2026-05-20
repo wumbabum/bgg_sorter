@@ -878,17 +878,7 @@ defmodule Web.CollectionLive do
   def handle_event("goto_page", %{"page" => page_str}, socket) do
     case Integer.parse(page_str) do
       {page, _} when page > 0 ->
-        username = socket.assigns.username
-        filters = socket.assigns.filters
-        advanced_search = socket.assigns.advanced_search
-
-        url =
-          build_collection_url(username, filters,
-            page: page,
-            advanced_search: advanced_search
-          )
-
-        {:noreply, push_patch(socket, to: url)}
+        {:noreply, push_patch(socket, to: pagination_url(socket, page))}
 
       _ ->
         {:noreply, socket}
@@ -899,20 +889,9 @@ defmodule Web.CollectionLive do
   def handle_event("next_page", _params, socket) do
     max_page = max_page(socket)
     current_page = socket.assigns.current_page
-    username = socket.assigns.username
-    filters = socket.assigns.filters
-    advanced_search = socket.assigns.advanced_search
 
     if current_page < max_page do
-      next_page = current_page + 1
-
-      url =
-        build_collection_url(username, filters,
-          page: next_page,
-          advanced_search: advanced_search
-        )
-
-      {:noreply, push_patch(socket, to: url)}
+      {:noreply, push_patch(socket, to: pagination_url(socket, current_page + 1))}
     else
       {:noreply, socket}
     end
@@ -921,20 +900,9 @@ defmodule Web.CollectionLive do
   @impl true
   def handle_event("prev_page", _params, socket) do
     current_page = socket.assigns.current_page
-    username = socket.assigns.username
-    filters = socket.assigns.filters
-    advanced_search = socket.assigns.advanced_search
 
     if current_page > 1 do
-      prev_page = current_page - 1
-
-      url =
-        build_collection_url(username, filters,
-          page: prev_page,
-          advanced_search: advanced_search
-        )
-
-      {:noreply, push_patch(socket, to: url)}
+      {:noreply, push_patch(socket, to: pagination_url(socket, current_page - 1))}
     else
       {:noreply, socket}
     end
@@ -1264,6 +1232,20 @@ defmodule Web.CollectionLive do
     {:noreply, push_patch(socket, to: url)}
   end
 
+  # Build a pagination URL that preserves all current URL state: filters,
+  # sort, mechanics, and advanced_search.
+  defp pagination_url(socket, page) do
+    build_collection_url_with_mechanics(
+      socket.assigns.username,
+      socket.assigns.filters,
+      socket.assigns.sort_by,
+      socket.assigns.sort_direction,
+      socket.assigns.selected_mechanics,
+      page: page,
+      advanced_search: socket.assigns.advanced_search
+    )
+  end
+
   # Common logic for applying immediate filters
   defp apply_immediate_filter(socket, username, field, value) do
     if username do
@@ -1308,8 +1290,20 @@ defmodule Web.CollectionLive do
             current_filters
         end
 
-      # Determine if this field should update URL (only players dropdown should update URL)
-      should_update_url = field == "players"
+      # All immediate filters update the URL so the state is shareable and
+      # survives page refresh. URL is built via the mechanics-aware builder
+      # so sort and selected_mechanics are preserved.
+      filter_url =
+        build_collection_url_with_mechanics(
+          username,
+          updated_filters,
+          socket.assigns.sort_by,
+          socket.assigns.sort_direction,
+          socket.assigns.selected_mechanics,
+          # Reset to page 1 when filtering
+          page: 1,
+          advanced_search: socket.assigns.advanced_search
+        )
 
       # Apply immediate filtering using client-side filtering (no database hit)
       original_items = socket.assigns.original_collection_items
@@ -1328,17 +1322,7 @@ defmodule Web.CollectionLive do
         # Reload collection with new filters
         send(self(), {:load_collection_with_filters, username, updated_filters})
 
-        if should_update_url do
-          url =
-            build_collection_url(username, updated_filters,
-              page: 1,
-              advanced_search: socket.assigns.advanced_search
-            )
-
-          {:noreply, push_patch(socket, to: url)}
-        else
-          {:noreply, socket}
-        end
+        {:noreply, push_patch(socket, to: filter_url)}
       else
         # Use client-side filtering for instant results (no database hit)
         Logger.info("Applied immediate filter for #{field}=#{value} using client-side filtering")
@@ -1349,20 +1333,7 @@ defmodule Web.CollectionLive do
           # Reset to page 1 when filtering
           |> assign(:current_page, 1)
 
-        if should_update_url do
-          # Update URL for dropdown selections (players)
-          url =
-            build_collection_url(username, updated_filters,
-              # Reset to page 1 when filtering
-              page: 1,
-              advanced_search: socket.assigns.advanced_search
-            )
-
-          {:noreply, push_patch(updated_socket, to: url)}
-        else
-          # For text inputs, just update the socket without changing URL
-          {:noreply, updated_socket}
-        end
+        {:noreply, push_patch(updated_socket, to: filter_url)}
       end
     else
       # No username, can't filter
