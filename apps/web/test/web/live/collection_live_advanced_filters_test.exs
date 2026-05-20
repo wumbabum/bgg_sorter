@@ -94,4 +94,82 @@ defmodule Web.CollectionLiveAdvancedFiltersTest do
       assert pos_high < pos_med
     end
   end
+
+  describe "advanced_search form preserves URL state" do
+    test "submitting advanced search preserves sort in URL", %{conn: conn} do
+      setup_mixed_rating_collection()
+
+      # Start on a page that already has sort applied.
+      {:ok, view, _html} =
+        live(conn, "/collection/testuser?sort_by=average&sort_direction=desc&advanced_search=true")
+
+      Process.sleep(300)
+
+      # Submit the advanced search form with a new filter; sort must be preserved.
+      view
+      |> form("form[phx-submit='advanced_search']", %{
+        "username" => "testuser",
+        "average" => "7"
+      })
+      |> render_submit()
+
+      path = assert_patch(view)
+      assert path =~ "average=7"
+      assert path =~ "sort_by=average"
+      assert path =~ "sort_direction=desc"
+      assert path =~ "advanced_search=true"
+    end
+
+    test "submitting advanced search preserves selected mechanics in URL", %{conn: conn} do
+      setup_mixed_rating_collection()
+
+      # Start with mechanics selected in URL.
+      {:ok, view, _html} =
+        live(
+          conn,
+          "/collection/testuser?mechanics=42,99&sort_by=average&sort_direction=desc&advanced_search=true"
+        )
+
+      Process.sleep(300)
+
+      view
+      |> form("form[phx-submit='advanced_search']", %{
+        "username" => "testuser",
+        "primary_name" => "Game"
+      })
+      |> render_submit()
+
+      path = assert_patch(view)
+      assert path =~ "primary_name=Game"
+      assert path =~ "sort_by=average"
+      assert path =~ "sort_direction=desc"
+      # Mechanics are comma-joined but URL-encoded
+      assert path =~ ~r/mechanics=42(%2C|,)99/
+    end
+
+    test "clear_filters preserves sort and mechanics in URL", %{conn: conn} do
+      setup_mixed_rating_collection()
+
+      {:ok, view, _html} =
+        live(
+          conn,
+          "/collection/testuser?average=7&mechanics=42&sort_by=average&sort_direction=desc&advanced_search=true"
+        )
+
+      Process.sleep(300)
+
+      view
+      |> element("button", "Clear All Filters")
+      |> render_click()
+
+      path = assert_patch(view)
+      # Filter is removed
+      refute path =~ "average=7"
+      # But sort and mechanics are preserved
+      assert path =~ "sort_by=average"
+      assert path =~ "sort_direction=desc"
+      assert path =~ "mechanics=42"
+      assert path =~ "advanced_search=true"
+    end
+  end
 end

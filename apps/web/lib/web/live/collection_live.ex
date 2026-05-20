@@ -780,8 +780,16 @@ defmodule Web.CollectionLive do
       filters = extract_game_filters(params)
       current_username = socket.assigns.username
 
-      # Build URL with all filter parameters
-      collection_url = build_collection_url(username, filters, advanced_search: true)
+      # Build URL preserving sort and mechanics from current socket state
+      collection_url =
+        build_collection_url_with_mechanics(
+          username,
+          filters,
+          socket.assigns.sort_by,
+          socket.assigns.sort_direction,
+          socket.assigns.selected_mechanics,
+          advanced_search: true
+        )
 
       cond do
         # Same username - try client-side filtering first
@@ -847,13 +855,17 @@ defmodule Web.CollectionLive do
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
-        # Build URL without filter parameters but keeping advanced_search if active
+        # Build URL with no filters but preserving sort and mechanics.
+        # advanced_search is also preserved if currently active.
         url =
-          if socket.assigns.advanced_search do
-            "/collection/#{username}?advanced_search=true"
-          else
-            "/collection/#{username}"
-          end
+          build_collection_url_with_mechanics(
+            username,
+            %{},
+            socket.assigns.sort_by,
+            socket.assigns.sort_direction,
+            socket.assigns.selected_mechanics,
+            advanced_search: socket.assigns.advanced_search
+          )
 
         send(self(), {:load_collection, username})
         {:noreply, push_patch(socket, to: url)}
