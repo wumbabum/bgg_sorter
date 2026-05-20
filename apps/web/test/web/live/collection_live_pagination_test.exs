@@ -124,4 +124,40 @@ defmodule Web.CollectionLivePaginationTest do
       assert html =~ ~r/href="[^"]*primary_name=Game[^"]*"/
     end
   end
+
+  describe "immediate_filter updates URL" do
+    test "typing in primary_name text filter updates URL and preserves sort", %{conn: conn} do
+      setup_25_item_collection()
+
+      {:ok, view, _html} =
+        live(conn, "/collection/testuser?sort_by=average&sort_direction=desc")
+
+      Process.sleep(300)
+
+      # Simulate typing in the primary_name filter input
+      render_hook(view, "immediate_filter", %{"field" => "primary_name", "value" => "Game"})
+
+      path = assert_patch(view)
+      assert path =~ "primary_name=Game"
+      assert path =~ "sort_by=average"
+      assert path =~ "sort_direction=desc"
+    end
+
+    test "clearing a text filter removes it from URL", %{conn: conn} do
+      setup_25_item_collection()
+
+      {:ok, view, _html} =
+        live(conn, "/collection/testuser?primary_name=Game&sort_by=average&sort_direction=desc")
+
+      Process.sleep(300)
+
+      # Clear the filter by sending an empty value
+      render_hook(view, "immediate_filter", %{"field" => "primary_name", "value" => ""})
+
+      path = assert_patch(view)
+      refute path =~ "primary_name="
+      # Sort should still be preserved
+      assert path =~ "sort_by=average"
+    end
+  end
 end

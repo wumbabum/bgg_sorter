@@ -1290,8 +1290,20 @@ defmodule Web.CollectionLive do
             current_filters
         end
 
-      # Determine if this field should update URL (only players dropdown should update URL)
-      should_update_url = field == "players"
+      # All immediate filters update the URL so the state is shareable and
+      # survives page refresh. URL is built via the mechanics-aware builder
+      # so sort and selected_mechanics are preserved.
+      filter_url =
+        build_collection_url_with_mechanics(
+          username,
+          updated_filters,
+          socket.assigns.sort_by,
+          socket.assigns.sort_direction,
+          socket.assigns.selected_mechanics,
+          # Reset to page 1 when filtering
+          page: 1,
+          advanced_search: socket.assigns.advanced_search
+        )
 
       # Apply immediate filtering using client-side filtering (no database hit)
       original_items = socket.assigns.original_collection_items
@@ -1310,17 +1322,7 @@ defmodule Web.CollectionLive do
         # Reload collection with new filters
         send(self(), {:load_collection_with_filters, username, updated_filters})
 
-        if should_update_url do
-          url =
-            build_collection_url(username, updated_filters,
-              page: 1,
-              advanced_search: socket.assigns.advanced_search
-            )
-
-          {:noreply, push_patch(socket, to: url)}
-        else
-          {:noreply, socket}
-        end
+        {:noreply, push_patch(socket, to: filter_url)}
       else
         # Use client-side filtering for instant results (no database hit)
         Logger.info("Applied immediate filter for #{field}=#{value} using client-side filtering")
@@ -1331,20 +1333,7 @@ defmodule Web.CollectionLive do
           # Reset to page 1 when filtering
           |> assign(:current_page, 1)
 
-        if should_update_url do
-          # Update URL for dropdown selections (players)
-          url =
-            build_collection_url(username, updated_filters,
-              # Reset to page 1 when filtering
-              page: 1,
-              advanced_search: socket.assigns.advanced_search
-            )
-
-          {:noreply, push_patch(updated_socket, to: url)}
-        else
-          # For text inputs, just update the socket without changing URL
-          {:noreply, updated_socket}
-        end
+        {:noreply, push_patch(updated_socket, to: filter_url)}
       end
     else
       # No username, can't filter
