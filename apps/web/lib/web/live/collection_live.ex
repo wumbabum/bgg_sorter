@@ -878,17 +878,7 @@ defmodule Web.CollectionLive do
   def handle_event("goto_page", %{"page" => page_str}, socket) do
     case Integer.parse(page_str) do
       {page, _} when page > 0 ->
-        username = socket.assigns.username
-        filters = socket.assigns.filters
-        advanced_search = socket.assigns.advanced_search
-
-        url =
-          build_collection_url(username, filters,
-            page: page,
-            advanced_search: advanced_search
-          )
-
-        {:noreply, push_patch(socket, to: url)}
+        {:noreply, push_patch(socket, to: pagination_url(socket, page))}
 
       _ ->
         {:noreply, socket}
@@ -899,20 +889,9 @@ defmodule Web.CollectionLive do
   def handle_event("next_page", _params, socket) do
     max_page = max_page(socket)
     current_page = socket.assigns.current_page
-    username = socket.assigns.username
-    filters = socket.assigns.filters
-    advanced_search = socket.assigns.advanced_search
 
     if current_page < max_page do
-      next_page = current_page + 1
-
-      url =
-        build_collection_url(username, filters,
-          page: next_page,
-          advanced_search: advanced_search
-        )
-
-      {:noreply, push_patch(socket, to: url)}
+      {:noreply, push_patch(socket, to: pagination_url(socket, current_page + 1))}
     else
       {:noreply, socket}
     end
@@ -921,20 +900,9 @@ defmodule Web.CollectionLive do
   @impl true
   def handle_event("prev_page", _params, socket) do
     current_page = socket.assigns.current_page
-    username = socket.assigns.username
-    filters = socket.assigns.filters
-    advanced_search = socket.assigns.advanced_search
 
     if current_page > 1 do
-      prev_page = current_page - 1
-
-      url =
-        build_collection_url(username, filters,
-          page: prev_page,
-          advanced_search: advanced_search
-        )
-
-      {:noreply, push_patch(socket, to: url)}
+      {:noreply, push_patch(socket, to: pagination_url(socket, current_page - 1))}
     else
       {:noreply, socket}
     end
@@ -1262,6 +1230,20 @@ defmodule Web.CollectionLive do
       )
 
     {:noreply, push_patch(socket, to: url)}
+  end
+
+  # Build a pagination URL that preserves all current URL state: filters,
+  # sort, mechanics, and advanced_search.
+  defp pagination_url(socket, page) do
+    build_collection_url_with_mechanics(
+      socket.assigns.username,
+      socket.assigns.filters,
+      socket.assigns.sort_by,
+      socket.assigns.sort_direction,
+      socket.assigns.selected_mechanics,
+      page: page,
+      advanced_search: socket.assigns.advanced_search
+    )
   end
 
   # Common logic for applying immediate filters

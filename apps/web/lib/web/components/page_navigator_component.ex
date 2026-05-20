@@ -5,6 +5,13 @@ defmodule Web.Components.PageNavigatorComponent do
   import Phoenix.HTML
 
   def page_navigator(assigns) do
+    # Backward-compatible defaults for sort/mechanics
+    assigns =
+      assigns
+      |> assign_new(:sort_by, fn -> nil end)
+      |> assign_new(:sort_direction, fn -> nil end)
+      |> assign_new(:selected_mechanics, fn -> MapSet.new() end)
+
     ~H"""
     <%= if @total_items > @items_per_page do %>
       <div class="infobox">
@@ -14,7 +21,10 @@ defmodule Web.Components.PageNavigatorComponent do
             max_pages(@total_items, @items_per_page),
             @username,
             @filters,
-            @advanced_search
+            @advanced_search,
+            @sort_by,
+            @sort_direction,
+            @selected_mechanics
           )}
         </div>
         <div class="fr">
@@ -26,13 +36,25 @@ defmodule Web.Components.PageNavigatorComponent do
     """
   end
 
-  defp render_page_links(current_page, total_pages, username, filters, advanced_search) do
+  defp render_page_links(
+         current_page,
+         total_pages,
+         username,
+         filters,
+         advanced_search,
+         sort_by,
+         sort_direction,
+         selected_mechanics
+       ) do
     assigns = %{
       current_page: current_page,
       total_pages: total_pages,
       username: username,
       filters: filters,
       advanced_search: advanced_search,
+      sort_by: sort_by,
+      sort_direction: sort_direction,
+      selected_mechanics: selected_mechanics,
       page_links: build_page_links(current_page, total_pages)
     }
 
@@ -43,24 +65,30 @@ defmodule Web.Components.PageNavigatorComponent do
           <b>{text}</b>
         <% :link -> %>
           <.link
-            patch={build_page_url(@username, @filters, @advanced_search, page)}
+            patch={build_page_url(@username, @filters, @advanced_search, @sort_by, @sort_direction, @selected_mechanics, page)}
             title={"page #{page}"}
           >
             {text}
           </.link>
         <% :prev -> %>
           <.link
-            patch={build_page_url(@username, @filters, @advanced_search, page)}
+            patch={build_page_url(@username, @filters, @advanced_search, @sort_by, @sort_direction, @selected_mechanics, page)}
             title="previous page"
           >
             <b>{text}</b>
           </.link>
         <% :next -> %>
-          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title="next page">
+          <.link
+            patch={build_page_url(@username, @filters, @advanced_search, @sort_by, @sort_direction, @selected_mechanics, page)}
+            title="next page"
+          >
             <b>{text}</b>
           </.link>
         <% :last -> %>
-          <.link patch={build_page_url(@username, @filters, @advanced_search, page)} title="last page">
+          <.link
+            patch={build_page_url(@username, @filters, @advanced_search, @sort_by, @sort_direction, @selected_mechanics, page)}
+            title="last page"
+          >
             {text}
           </.link>
         <% :separator -> %>
@@ -134,11 +162,20 @@ defmodule Web.Components.PageNavigatorComponent do
     end
   end
 
-  # Helper function to build page URLs with filters and advanced search preserved
-  defp build_page_url(username, filters, advanced_search, page) do
+  # Helper function to build page URLs with filters, sort, mechanics, and
+  # advanced_search all preserved.
+  defp build_page_url(
+         username,
+         filters,
+         advanced_search,
+         sort_by,
+         sort_direction,
+         selected_mechanics,
+         page
+       ) do
     base_path = "/collection/#{username}"
 
-    # Build query parameters
+    # Build query parameters from filters
     query_params =
       filters
       |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
@@ -154,6 +191,35 @@ defmodule Web.Components.PageNavigatorComponent do
         Map.put(query_params, "advanced_search", "true")
       else
         query_params
+      end
+
+    # Add sort parameters if provided
+    query_params =
+      if sort_by do
+        Map.put(query_params, "sort_by", Atom.to_string(sort_by))
+      else
+        query_params
+      end
+
+    query_params =
+      if sort_direction do
+        Map.put(query_params, "sort_direction", Atom.to_string(sort_direction))
+      else
+        query_params
+      end
+
+    # Add mechanics parameter if any selected
+    query_params =
+      case selected_mechanics do
+        %MapSet{} = ms ->
+          if MapSet.size(ms) > 0 do
+            Map.put(query_params, "mechanics", Enum.join(MapSet.to_list(ms), ","))
+          else
+            query_params
+          end
+
+        _ ->
+          query_params
       end
 
     # Build query string
