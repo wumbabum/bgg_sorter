@@ -1456,12 +1456,15 @@ defmodule Web.CollectionLive do
 
   # Extract filters that should be applied at database level (not supported by BGG API)
   defp extract_client_only_filters(filters) do
-    # These filters are applied at database level for better performance
+    # These filters are applied at database level for better performance.
+    # :average is included so the minimum rating filter applies to cached data
+    # without requiring a fresh BGG API collection reload.
     client_only_keys = [
       :primary_name,
       :players,
       :playingtime,
       :rank,
+      :average,
       :averageweight_min,
       :averageweight_max,
       :description,
