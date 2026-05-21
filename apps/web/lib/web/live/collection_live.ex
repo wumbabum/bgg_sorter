@@ -259,12 +259,16 @@ defmodule Web.CollectionLive do
       selected_mechanics != current_selected_mechanics ->
         Logger.info("🔍 MECHANICS DEBUG: Mechanics changed, applying client-side filtering")
 
+        # Use apply_client_side_filters so the active filters (average, primary_name,
+        # players, etc.) are reapplied alongside the new mechanics selection. The
+        # previous helper, apply_mechanics_filtering, only considered mechanics and
+        # silently dropped every other filter from the rendered view.
         socket =
           socket
           |> assign(:selected_mechanics, selected_mechanics)
           |> assign(:advanced_search, advanced_search)
           |> assign(:modal_thing_id, modal_thing_id)
-          |> apply_mechanics_filtering()
+          |> then(&apply_client_side_filters(&1, &1.assigns.filters))
           # Reset to page 1 when filtering changes
           |> assign(:current_page, 1)
 
@@ -1186,10 +1190,13 @@ defmodule Web.CollectionLive do
         MapSet.put(current_selected, mechanic_id)
       end
 
+    # Reapply ALL filters together (not just mechanics) so any active
+    # primary_name / average / players / weight filters survive a mechanic
+    # toggle in the rendered view.
     socket =
       socket
       |> assign(:selected_mechanics, new_selected)
-      |> apply_mechanics_filtering()
+      |> then(&apply_client_side_filters(&1, &1.assigns.filters))
       # Reset to page 1 when filtering changes
       |> assign(:current_page, 1)
 
@@ -1677,42 +1684,6 @@ defmodule Web.CollectionLive do
     |> assign(:collection_items, current_page_items)
     |> assign(:total_items, total_items)
     |> assign(:collection_loading, false)
-  end
-
-  # Apply mechanics filtering to the collection client-side (legacy function, kept for compatibility)
-  defp apply_mechanics_filtering(socket) do
-    original_items = socket.assigns.original_collection_items
-    selected_mechanics = socket.assigns.selected_mechanics
-
-    filtered_items =
-      if MapSet.size(selected_mechanics) == 0 do
-        # No mechanics filter - show all items
-        original_items
-      else
-        # Filter items that have ALL selected mechanics
-        mechanic_ids = MapSet.to_list(selected_mechanics)
-
-        Enum.filter(original_items, fn item ->
-          if item.mechanics do
-            item_mechanic_ids = Enum.map(item.mechanics, & &1.id)
-            Enum.all?(mechanic_ids, fn id -> id in item_mechanic_ids end)
-          else
-            # Item has no mechanics loaded, can't match
-            false
-          end
-        end)
-      end
-
-    # Update the filtered collection and pagination
-    total_items = length(filtered_items)
-
-    current_page_items =
-      get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
-
-    socket
-    |> assign(:all_collection_items, filtered_items)
-    |> assign(:collection_items, current_page_items)
-    |> assign(:total_items, total_items)
   end
 
   # Helper function to parse URL parameters into filters
