@@ -259,12 +259,16 @@ defmodule Web.CollectionLive do
       selected_mechanics != current_selected_mechanics ->
         Logger.info("🔍 MECHANICS DEBUG: Mechanics changed, applying client-side filtering")
 
+        # Use apply_client_side_filters so the active filters (average, primary_name,
+        # players, etc.) are reapplied alongside the new mechanics selection. The
+        # previous helper, apply_mechanics_filtering, only considered mechanics and
+        # silently dropped every other filter from the rendered view.
         socket =
           socket
           |> assign(:selected_mechanics, selected_mechanics)
           |> assign(:advanced_search, advanced_search)
           |> assign(:modal_thing_id, modal_thing_id)
-          |> apply_mechanics_filtering()
+          |> then(&apply_client_side_filters(&1, &1.assigns.filters))
           # Reset to page 1 when filtering changes
           |> assign(:current_page, 1)
 
@@ -946,9 +950,19 @@ defmodule Web.CollectionLive do
           filters = socket.assigns.filters
           advanced_search = socket.assigns.advanced_search
           current_page = socket.assigns.current_page
+          sort_field = socket.assigns.sort_by
+          sort_direction = socket.assigns.sort_direction
+          selected_mechanics = socket.assigns.selected_mechanics
 
+          # Preserve sort and mechanics state so the modal URL is shareable and
+          # refreshing it does not silently drop those parameters.
           url =
-            build_collection_url(username, filters,
+            build_collection_url_with_mechanics(
+              username,
+              filters,
+              sort_field,
+              sort_direction,
+              selected_mechanics,
               page: current_page,
               advanced_search: advanced_search,
               modal_thing_id: thing_id
@@ -1176,10 +1190,13 @@ defmodule Web.CollectionLive do
         MapSet.put(current_selected, mechanic_id)
       end
 
+    # Reapply ALL filters together (not just mechanics) so any active
+    # primary_name / average / players / weight filters survive a mechanic
+    # toggle in the rendered view.
     socket =
       socket
       |> assign(:selected_mechanics, new_selected)
-      |> apply_mechanics_filtering()
+      |> then(&apply_client_side_filters(&1, &1.assigns.filters))
       # Reset to page 1 when filtering changes
       |> assign(:current_page, 1)
 
@@ -1669,42 +1686,6 @@ defmodule Web.CollectionLive do
     |> assign(:collection_loading, false)
   end
 
-  # Apply mechanics filtering to the collection client-side (legacy function, kept for compatibility)
-  defp apply_mechanics_filtering(socket) do
-    original_items = socket.assigns.original_collection_items
-    selected_mechanics = socket.assigns.selected_mechanics
-
-    filtered_items =
-      if MapSet.size(selected_mechanics) == 0 do
-        # No mechanics filter - show all items
-        original_items
-      else
-        # Filter items that have ALL selected mechanics
-        mechanic_ids = MapSet.to_list(selected_mechanics)
-
-        Enum.filter(original_items, fn item ->
-          if item.mechanics do
-            item_mechanic_ids = Enum.map(item.mechanics, & &1.id)
-            Enum.all?(mechanic_ids, fn id -> id in item_mechanic_ids end)
-          else
-            # Item has no mechanics loaded, can't match
-            false
-          end
-        end)
-      end
-
-    # Update the filtered collection and pagination
-    total_items = length(filtered_items)
-
-    current_page_items =
-      get_current_page_items_from_list(filtered_items, socket.assigns.current_page)
-
-    socket
-    |> assign(:all_collection_items, filtered_items)
-    |> assign(:collection_items, current_page_items)
-    |> assign(:total_items, total_items)
-  end
-
   # Helper function to parse URL parameters into filters
   defp parse_url_filters(params) do
     %{}
@@ -1718,50 +1699,6 @@ defmodule Web.CollectionLive do
       Map.get(params, "averageweight_max")
     )
     |> maybe_put_filter(:description, Map.get(params, "description"))
-  end
-
-  # Helper function to build URL with filter query parameters
-  defp build_collection_url(username, filters, opts) do
-    base_path = "/collection/#{username}"
-
-    # Build query parameters
-    query_params =
-      filters
-      |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
-      |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
-      |> Enum.into(%{})
-
-    # Add advanced_search parameter if needed
-    query_params =
-      if opts[:advanced_search] do
-        Map.put(query_params, "advanced_search", "true")
-      else
-        query_params
-      end
-
-    # Add page parameter if needed
-    query_params =
-      if opts[:page] do
-        Map.put(query_params, "page", to_string(opts[:page]))
-      else
-        query_params
-      end
-
-    # Add modal_thing_id parameter if needed
-    query_params =
-      if opts[:modal_thing_id] do
-        Map.put(query_params, "modal_thing_id", to_string(opts[:modal_thing_id]))
-      else
-        query_params
-      end
-
-    # Build query string
-    if Enum.empty?(query_params) do
-      base_path
-    else
-      query_string = URI.encode_query(query_params)
-      "#{base_path}?#{query_string}"
-    end
   end
 
   # Helper function to parse sort parameters from URL
