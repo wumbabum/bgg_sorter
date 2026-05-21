@@ -185,6 +185,9 @@ defmodule Web.CollectionLive do
     current_modal_thing_id = socket.assigns.modal_thing_id
     current_selected_mechanics = socket.assigns.selected_mechanics
 
+    sort_changed? =
+      sort_field != current_sort_field or sort_direction != current_sort_direction
+
     cond do
       # Username changed, reload collection
       username != socket.assigns.username ->
@@ -231,14 +234,20 @@ defmodule Web.CollectionLive do
 
         {:noreply, socket}
 
-      # Filters changed (but same username), try client-side filtering first
+      # Filters changed (but same username), try client-side filtering first.
+      # Sync ALL URL-derived assigns before invoking the cache so that any
+      # simultaneous change to sort or mechanics is honored too. Without this,
+      # the cond fall-through silently dropped sort/mechanics updates that
+      # arrived alongside filter changes.
       filters != current_filters ->
         socket =
           socket
-          # Also update page
           |> assign(:current_page, page)
-          # Also update advanced_search
           |> assign(:advanced_search, advanced_search)
+          |> assign(:sort_by, sort_field)
+          |> assign(:sort_direction, sort_direction)
+          |> assign(:selected_mechanics, selected_mechanics)
+          |> assign(:modal_thing_id, modal_thing_id)
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
@@ -255,22 +264,47 @@ defmodule Web.CollectionLive do
             {:noreply, socket}
         end
 
-      # Selected mechanics changed - apply client-side filtering
+      # Selected mechanics changed (and filters unchanged).
       selected_mechanics != current_selected_mechanics ->
         Logger.info("🔍 MECHANICS DEBUG: Mechanics changed, applying client-side filtering")
 
-        # Use apply_client_side_filters so the active filters (average, primary_name,
-        # players, etc.) are reapplied alongside the new mechanics selection. The
-        # previous helper, apply_mechanics_filtering, only considered mechanics and
-        # silently dropped every other filter from the rendered view.
+        # Sync sort assigns from URL so a concurrent sort change in the same
+        # URL update is captured. Without this the cond fall-through silently
+        # dropped sort updates that arrived alongside mechanics changes.
         socket =
           socket
           |> assign(:selected_mechanics, selected_mechanics)
           |> assign(:advanced_search, advanced_search)
           |> assign(:modal_thing_id, modal_thing_id)
-          |> then(&apply_client_side_filters(&1, &1.assigns.filters))
-          # Reset to page 1 when filtering changes
-          |> assign(:current_page, 1)
+          |> assign(:sort_by, sort_field)
+          |> assign(:sort_direction, sort_direction)
+
+        # If sort ALSO changed, the cached items must be re-sorted via the
+        # cache layer; pure client-side filtering would preserve the old order.
+        # If only mechanics changed, client-side filtering is sufficient and
+        # cheaper. Either path uses apply_client_side_filters / the cache to
+        # combine the active filters with the new mechanics selection so other
+        # filters (average, primary_name, ...) survive.
+        socket =
+          if sort_changed? do
+            socket =
+              socket
+              |> assign(:collection_loading, true)
+              |> assign(:search_error, nil)
+
+            case reapply_filters_to_collection(socket, socket.assigns.filters) do
+              {:ok, s} ->
+                s
+
+              {:reload_needed, s} ->
+                send(self(), {:load_collection_with_filters, username, s.assigns.filters})
+                s
+            end
+          else
+            then(socket, &apply_client_side_filters(&1, &1.assigns.filters))
+          end
+
+        socket = assign(socket, :current_page, 1)
 
         # Preserve modal state if modal_thing_id is present
         socket =
@@ -285,8 +319,9 @@ defmodule Web.CollectionLive do
 
         {:noreply, socket}
 
-      # Sort parameters changed - re-sort existing cached data
-      sort_field != current_sort_field or sort_direction != current_sort_direction ->
+      # Sort parameters changed - re-sort existing cached data.
+      # Sync mechanics from URL so the cache query uses the latest value.
+      sort_changed? ->
         original_items = socket.assigns.original_collection_items
 
         socket =
@@ -296,6 +331,8 @@ defmodule Web.CollectionLive do
           # Reset to page 1
           |> assign(:current_page, 1)
           |> assign(:advanced_search, advanced_search)
+          |> assign(:selected_mechanics, selected_mechanics)
+          |> assign(:modal_thing_id, modal_thing_id)
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
@@ -1052,19 +1089,22 @@ defmodule Web.CollectionLive do
         {:noreply, push_patch(socket, to: url)}
 
       username ->
-        # Have username and collection data, just toggle advanced search with push_patch
-        # Preserve all current URL parameters (filters, page, sort, etc.)
+        # Have username and collection data, just toggle advanced search with push_patch.
+        # Preserve ALL current URL state (filters, page, sort, mechanics) -- the
+        # mechanics-aware builder is used so selected mechanics survive the toggle.
         filters = socket.assigns.filters
         current_page = socket.assigns.current_page
         sort_field = socket.assigns.sort_by
         sort_direction = socket.assigns.sort_direction
+        selected_mechanics = socket.assigns.selected_mechanics
 
         new_url =
-          build_collection_url_with_sort_and_page(
+          build_collection_url_with_mechanics(
             username,
             filters,
             sort_field,
             sort_direction,
+            selected_mechanics,
             page: current_page,
             advanced_search: new_advanced_search
           )
@@ -1248,13 +1288,21 @@ defmodule Web.CollectionLive do
         :asc
       end
 
-    # Update URL to include sort parameters (this will trigger handle_params with new sort)
+    # Update URL to include sort parameters (this will trigger handle_params
+    # with new sort). The mechanics-aware builder is used so any selected
+    # mechanics are preserved when the user clicks a sortable column header.
     username = socket.assigns.username
     filters = socket.assigns.filters
     advanced_search = socket.assigns.advanced_search
+    selected_mechanics = socket.assigns.selected_mechanics
 
     url =
-      build_collection_url_with_sort(username, filters, field, new_sort_direction,
+      build_collection_url_with_mechanics(
+        username,
+        filters,
+        field,
+        new_sort_direction,
+        selected_mechanics,
         advanced_search: advanced_search
       )
 
@@ -1721,104 +1769,6 @@ defmodule Web.CollectionLive do
       end
 
     {sort_field, sort_direction}
-  end
-
-  # Helper function to build URL with filter, sort, and page query parameters
-  defp build_collection_url_with_sort_and_page(
-         username,
-         filters,
-         sort_field,
-         sort_direction,
-         opts
-       ) do
-    base_path = "/collection/#{username}"
-
-    # Build query parameters
-    query_params =
-      filters
-      |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
-      |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
-      |> Enum.into(%{})
-
-    # Add sort parameters
-    query_params =
-      query_params
-      |> Map.put("sort_by", Atom.to_string(sort_field))
-      |> Map.put("sort_direction", Atom.to_string(sort_direction))
-
-    # Add advanced_search parameter if needed
-    query_params =
-      if opts[:advanced_search] do
-        Map.put(query_params, "advanced_search", "true")
-      else
-        query_params
-      end
-
-    # Add page parameter if needed and not page 1
-    query_params =
-      if opts[:page] && opts[:page] != 1 do
-        Map.put(query_params, "page", to_string(opts[:page]))
-      else
-        query_params
-      end
-
-    # Build query string
-    if Enum.empty?(query_params) do
-      base_path
-    else
-      query_string = URI.encode_query(query_params)
-      "#{base_path}?#{query_string}"
-    end
-  end
-
-  # Helper function to build URL with filter and sort query parameters
-  defp build_collection_url_with_sort(username, filters, sort_field, sort_direction, opts) do
-    base_path = "/collection/#{username}"
-
-    # Build query parameters
-    query_params =
-      filters
-      |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
-      |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
-      |> Enum.into(%{})
-
-    # Add sort parameters
-    query_params =
-      query_params
-      |> Map.put("sort_by", Atom.to_string(sort_field))
-      |> Map.put("sort_direction", Atom.to_string(sort_direction))
-
-    # Add advanced_search parameter if needed
-    query_params =
-      if opts[:advanced_search] do
-        Map.put(query_params, "advanced_search", "true")
-      else
-        query_params
-      end
-
-    # Add page parameter if needed
-    query_params =
-      if opts[:page] do
-        Map.put(query_params, "page", to_string(opts[:page]))
-      else
-        query_params
-      end
-
-    # Add modal_thing_id parameter if needed
-    query_params =
-      if opts[:modal_thing_id] do
-        Map.put(query_params, "modal_thing_id", to_string(opts[:modal_thing_id]))
-      else
-        query_params
-      end
-
-    # Build query string
-    if Enum.empty?(query_params) do
-      base_path
-    else
-      query_string = URI.encode_query(query_params)
-      "#{base_path}?#{query_string}"
-    end
   end
 
   # Helper function to build URL with filter, sort, and mechanics query parameters
