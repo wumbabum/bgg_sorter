@@ -1052,19 +1052,22 @@ defmodule Web.CollectionLive do
         {:noreply, push_patch(socket, to: url)}
 
       username ->
-        # Have username and collection data, just toggle advanced search with push_patch
-        # Preserve all current URL parameters (filters, page, sort, etc.)
+        # Have username and collection data, just toggle advanced search with push_patch.
+        # Preserve ALL current URL state (filters, page, sort, mechanics) -- the
+        # mechanics-aware builder is used so selected mechanics survive the toggle.
         filters = socket.assigns.filters
         current_page = socket.assigns.current_page
         sort_field = socket.assigns.sort_by
         sort_direction = socket.assigns.sort_direction
+        selected_mechanics = socket.assigns.selected_mechanics
 
         new_url =
-          build_collection_url_with_sort_and_page(
+          build_collection_url_with_mechanics(
             username,
             filters,
             sort_field,
             sort_direction,
+            selected_mechanics,
             page: current_page,
             advanced_search: new_advanced_search
           )
