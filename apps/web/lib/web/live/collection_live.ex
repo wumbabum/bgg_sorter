@@ -1248,13 +1248,21 @@ defmodule Web.CollectionLive do
         :asc
       end
 
-    # Update URL to include sort parameters (this will trigger handle_params with new sort)
+    # Update URL to include sort parameters (this will trigger handle_params
+    # with new sort). The mechanics-aware builder is used so any selected
+    # mechanics are preserved when the user clicks a sortable column header.
     username = socket.assigns.username
     filters = socket.assigns.filters
     advanced_search = socket.assigns.advanced_search
+    selected_mechanics = socket.assigns.selected_mechanics
 
     url =
-      build_collection_url_with_sort(username, filters, field, new_sort_direction,
+      build_collection_url_with_mechanics(
+        username,
+        filters,
+        field,
+        new_sort_direction,
+        selected_mechanics,
         advanced_search: advanced_search
       )
 
