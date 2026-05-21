@@ -110,7 +110,7 @@ defmodule Web.JobsDashboardLive do
               <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 8px;"><%= format_datetime(job.inserted_at) %></td>
                 <td style="padding: 8px;"><%= short_worker_name(job.worker) %></td>
-                <td style="padding: 8px;"><%= status_badge(job.state) %></td>
+                <td style="padding: 8px;"><%= status_badge(job) %></td>
                 <td style="padding: 8px;"><%= format_duration(job) %></td>
                 <td style="padding: 8px;"><%= get_result(job, "total_cached") %></td>
                 <td style="padding: 8px; max-width: 300px; overflow: hidden; text-overflow: ellipsis;"><%= job_message(job) %></td>
@@ -164,14 +164,23 @@ defmodule Web.JobsDashboardLive do
     Calendar.strftime(dt, "%Y-%m-%d %H:%M UTC")
   end
 
-  defp status_badge("completed"), do: "✅ Completed"
-  defp status_badge("executing"), do: "🔄 Running"
-  defp status_badge("available"), do: "⏳ Queued"
-  defp status_badge("scheduled"), do: "📅 Scheduled"
-  defp status_badge("retryable"), do: "❌ Failed"
-  defp status_badge("discarded"), do: "❌ Failed"
-  defp status_badge("cancelled"), do: "🚫 Cancelled"
-  defp status_badge(state), do: state
+  # A job that finished cleanly from Oban's perspective can still record
+  # `meta["status"] == "error"` for partial-success runs (e.g. some BGG
+  # chunks failed). Surface that as a distinct ⚠️ badge so the operator
+  # notices without needing to read the Message column.
+  defp status_badge(%{state: "completed", meta: %{"status" => "error"}}),
+    do: "⚠️ Completed with errors"
+
+  defp status_badge(%{state: state}), do: state_badge(state)
+
+  defp state_badge("completed"), do: "✅ Completed"
+  defp state_badge("executing"), do: "🔄 Running"
+  defp state_badge("available"), do: "⏳ Queued"
+  defp state_badge("scheduled"), do: "📅 Scheduled"
+  defp state_badge("retryable"), do: "❌ Failed"
+  defp state_badge("discarded"), do: "❌ Failed"
+  defp state_badge("cancelled"), do: "🚫 Cancelled"
+  defp state_badge(state), do: state
 
   defp format_duration(%{state: "executing", attempted_at: started}) when not is_nil(started) do
     seconds = NaiveDateTime.diff(NaiveDateTime.utc_now(), started, :second)
@@ -189,7 +198,15 @@ defmodule Web.JobsDashboardLive do
   defp format_seconds(s) when s < 3600, do: "#{div(s, 60)}m #{rem(s, 60)}s"
   defp format_seconds(s), do: "#{div(s, 3600)}h #{div(rem(s, 3600), 60)}m"
 
-  defp job_message(%{state: state, errors: errors}) when state in ["retryable", "discarded"] and is_list(errors) and errors != [] do
+  # Prefer the worker's own message from meta. Fall back to Oban's
+  # auto-populated errors when the worker crashed (raise/exit/throw)
+  # before it could record anything. Finally, derive a message from
+  # the legacy `results` map for jobs that ran before Dispatch.Result
+  # was introduced.
+  defp job_message(%{meta: %{"message" => msg}}) when is_binary(msg) and msg != "", do: msg
+
+  defp job_message(%{state: state, errors: errors})
+       when state in ["retryable", "discarded"] and is_list(errors) and errors != [] do
     errors |> List.last() |> Map.get("message", "Unknown error") |> String.slice(0, 100)
   end
 

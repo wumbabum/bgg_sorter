@@ -44,11 +44,38 @@ defmodule Dispatch.Workers.PrecacheWorker do
 
     Logger.info("PrecacheWorker complete: #{inspect(summary)}")
 
-    record_results(job.id, job.meta, summary)
-
-    Phoenix.PubSub.broadcast(Web.PubSub, "dispatch:jobs", :job_updated)
+    {status, message} = summary_status_and_message(summary)
+    Dispatch.Result.record(job, status, message, %{"results" => summary})
 
     :ok
+  end
+
+  # Builds a (:ok | :error, short_message) pair from the run summary.
+  # The dashboard surfaces these directly; partial-success runs are
+  # reported as :error so the operator can see that BGG calls dropped
+  # without changing Oban's `state` (which stays `completed`).
+  defp summary_status_and_message(%{
+         "total_requested" => requested,
+         "total_cached" => cached,
+         "total_failed" => failed,
+         "end_of_list" => end_of_list?
+       }) do
+    cond do
+      requested == 0 and end_of_list? ->
+        {:ok, "All ranked games already cached"}
+
+      requested == 0 ->
+        {:ok, "No uncached games to fetch"}
+
+      failed == 0 ->
+        {:ok, "Cached #{cached} of #{requested} games"}
+
+      cached == 0 ->
+        {:error, "BGG calls failed for all #{requested} games"}
+
+      true ->
+        {:error, "Cached #{cached} of #{requested}; #{failed} failed"}
+    end
   end
 
   defp fetch_and_cache([]), do: %{cached_count: 0, failed_count: 0}
@@ -93,13 +120,4 @@ defmodule Dispatch.Workers.PrecacheWorker do
     end
   end
 
-  defp record_results(job_id, existing_meta, summary) do
-    Oban.Job
-    |> Core.Repo.get!(job_id)
-    |> Ecto.Changeset.change(meta: Map.merge(existing_meta, %{"results" => summary}))
-    |> Core.Repo.update!()
-  rescue
-    error ->
-      Logger.error("Failed to record job results: #{inspect(error)}")
-  end
 end

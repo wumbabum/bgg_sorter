@@ -61,7 +61,7 @@ defmodule Dispatch.Workers.PrecacheWorkerTest do
       assert Core.Repo.get(Core.Schemas.Thing, "342942") != nil
     end
 
-    test "records results in job meta" do
+    test "records results, status, and message in job meta on success" do
       Core.MockReqClient
       |> expect(:get, fn _url, _params, _headers ->
         {:ok, %Req.Response{status: 200, body: mock_things_xml([
@@ -69,7 +69,6 @@ defmodule Dispatch.Workers.PrecacheWorkerTest do
         ])}}
       end)
 
-      # Insert a real Oban job so we can verify meta update
       {:ok, oban_job} =
         %{"limit" => 1}
         |> PrecacheWorker.new()
@@ -77,13 +76,37 @@ defmodule Dispatch.Workers.PrecacheWorkerTest do
 
       assert :ok = PrecacheWorker.perform(oban_job)
 
-      # Reload job and check meta
       updated_job = Core.Repo.get!(Oban.Job, oban_job.id)
-      results = updated_job.meta["results"]
 
+      # Legacy rich `results` map preserved for the dashboard's Cached column.
+      results = updated_job.meta["results"]
       assert is_map(results)
       assert results["total_cached"] >= 0
       assert results["completed_at"] != nil
+
+      # New standardized status/message surface.
+      assert updated_job.meta["status"] == "ok"
+      assert is_binary(updated_job.meta["message"])
+      assert updated_job.meta["message"] =~ ~r/Cached \d+ of \d+ games/
+    end
+
+    test "records status=error when some BGG chunks fail" do
+      # Mock returns a 500 so the whole chunk is recorded as failed.
+      Core.MockReqClient
+      |> expect(:get, fn _url, _params, _headers ->
+        {:ok, %Req.Response{status: 500, body: "oops"}}
+      end)
+
+      {:ok, oban_job} =
+        %{"limit" => 1}
+        |> PrecacheWorker.new()
+        |> Oban.insert()
+
+      assert :ok = PrecacheWorker.perform(oban_job)
+
+      updated_job = Core.Repo.get!(Oban.Job, oban_job.id)
+      assert updated_job.meta["status"] == "error"
+      assert updated_job.meta["message"] =~ ~r/failed/
     end
 
     test "handles zero uncached games gracefully" do

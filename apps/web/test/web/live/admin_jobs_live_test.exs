@@ -100,5 +100,69 @@ defmodule Web.AdminJobsLiveTest do
 
       assert html =~ "All games cached"
     end
+
+    test "prefers meta.message over derived results message", %{conn: conn} do
+      {:ok, job} =
+        Dispatch.Workers.PrecacheWorker.new(%{})
+        |> Oban.insert()
+
+      now = DateTime.utc_now()
+
+      Oban.Job
+      |> Core.Repo.get!(job.id)
+      |> Ecto.Changeset.change(
+        state: "completed",
+        attempted_at: now,
+        completed_at: now,
+        attempt: 1,
+        meta: %{
+          "status" => "ok",
+          "message" => "Cached 7 of 10 games",
+          "results" => %{
+            "total_requested" => 10,
+            "total_cached" => 7,
+            "total_failed" => 0
+          }
+        }
+      )
+      |> Core.Repo.update!()
+
+      {:ok, _view, html} = live(auth_conn(conn), "/admin/jobs")
+
+      assert html =~ "Cached 7 of 10 games"
+      assert html =~ "✅ Completed"
+    end
+
+    test "shows warning badge when completed job recorded status=error", %{conn: conn} do
+      {:ok, job} =
+        Dispatch.Workers.PrecacheWorker.new(%{})
+        |> Oban.insert()
+
+      now = DateTime.utc_now()
+
+      Oban.Job
+      |> Core.Repo.get!(job.id)
+      |> Ecto.Changeset.change(
+        state: "completed",
+        attempted_at: now,
+        completed_at: now,
+        attempt: 1,
+        meta: %{
+          "status" => "error",
+          "message" => "Cached 2 of 5; 3 failed",
+          "results" => %{
+            "total_requested" => 5,
+            "total_cached" => 2,
+            "total_failed" => 3
+          }
+        }
+      )
+      |> Core.Repo.update!()
+
+      {:ok, _view, html} = live(auth_conn(conn), "/admin/jobs")
+
+      assert html =~ "Completed with errors"
+      assert html =~ "Cached 2 of 5; 3 failed"
+    end
   end
 end
