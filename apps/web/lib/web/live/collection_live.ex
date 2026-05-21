@@ -946,9 +946,19 @@ defmodule Web.CollectionLive do
           filters = socket.assigns.filters
           advanced_search = socket.assigns.advanced_search
           current_page = socket.assigns.current_page
+          sort_field = socket.assigns.sort_by
+          sort_direction = socket.assigns.sort_direction
+          selected_mechanics = socket.assigns.selected_mechanics
 
+          # Preserve sort and mechanics state so the modal URL is shareable and
+          # refreshing it does not silently drop those parameters.
           url =
-            build_collection_url(username, filters,
+            build_collection_url_with_mechanics(
+              username,
+              filters,
+              sort_field,
+              sort_direction,
+              selected_mechanics,
               page: current_page,
               advanced_search: advanced_search,
               modal_thing_id: thing_id
@@ -1718,50 +1728,6 @@ defmodule Web.CollectionLive do
       Map.get(params, "averageweight_max")
     )
     |> maybe_put_filter(:description, Map.get(params, "description"))
-  end
-
-  # Helper function to build URL with filter query parameters
-  defp build_collection_url(username, filters, opts) do
-    base_path = "/collection/#{username}"
-
-    # Build query parameters
-    query_params =
-      filters
-      |> Enum.filter(fn {_key, value} -> value != nil and value != "" end)
-      |> Enum.map(fn {key, value} -> {Atom.to_string(key), value} end)
-      |> Enum.into(%{})
-
-    # Add advanced_search parameter if needed
-    query_params =
-      if opts[:advanced_search] do
-        Map.put(query_params, "advanced_search", "true")
-      else
-        query_params
-      end
-
-    # Add page parameter if needed
-    query_params =
-      if opts[:page] do
-        Map.put(query_params, "page", to_string(opts[:page]))
-      else
-        query_params
-      end
-
-    # Add modal_thing_id parameter if needed
-    query_params =
-      if opts[:modal_thing_id] do
-        Map.put(query_params, "modal_thing_id", to_string(opts[:modal_thing_id]))
-      else
-        query_params
-      end
-
-    # Build query string
-    if Enum.empty?(query_params) do
-      base_path
-    else
-      query_string = URI.encode_query(query_params)
-      "#{base_path}?#{query_string}"
-    end
   end
 
   # Helper function to parse sort parameters from URL
