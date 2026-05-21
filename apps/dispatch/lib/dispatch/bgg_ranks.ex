@@ -5,7 +5,13 @@ defmodule Dispatch.BggRanks do
 
   require Logger
 
-  @csv_path Application.app_dir(:core, "priv/boardgames_ranks.csv")
+  # Resolve the CSV path at runtime, not compile time. Using a module
+  # attribute here would bake the build-host's _build/<env>/lib/core/priv/...
+  # path into the BEAM file; that path does not exist at runtime in a Mix
+  # release (the priv files are copied to lib/core-<vsn>/priv/...), so the
+  # PrecacheWorker would crash immediately on the deployed host with
+  # File.Error: no such file or directory.
+  defp csv_path, do: Application.app_dir(:core, "priv/boardgames_ranks.csv")
 
   @doc """
   Parses the BGG ranks CSV, returning base games sorted by rank.
@@ -13,7 +19,7 @@ defmodule Dispatch.BggRanks do
   """
   @spec parse_ranks() :: [%{id: String.t(), name: String.t(), rank: integer()}]
   def parse_ranks do
-    parse_ranks_from_path(@csv_path)
+    parse_ranks_from_path(csv_path())
   end
 
   @doc """
@@ -45,7 +51,7 @@ defmodule Dispatch.BggRanks do
   Returns {:ok, ids} or {:error, :end_of_list} if the CSV is exhausted.
   """
   @spec uncached_top_n(non_neg_integer()) :: {:ok, [String.t()]} | {:error, :end_of_list}
-  def uncached_top_n(n), do: uncached_top_n_from_path(@csv_path, n)
+  def uncached_top_n(n), do: uncached_top_n_from_path(csv_path(), n)
 
   @doc "Same as uncached_top_n/1 but reads from a specific path. Useful for testing."
   @spec uncached_top_n_from_path(String.t(), non_neg_integer()) ::

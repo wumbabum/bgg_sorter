@@ -2,7 +2,7 @@ defmodule Dispatch.Workers.PrecacheWorker do
   @moduledoc """
   Daily cron worker that precaches top-ranked BGG games.
   Fetches the top 300 uncached games by BGG rank in chunks of 20
-  with a 10-second delay between chunks.
+  with a 30-second delay between chunks.
   """
 
   use Oban.Worker, queue: :precache, max_attempts: 1
@@ -13,7 +13,7 @@ defmodule Dispatch.Workers.PrecacheWorker do
   alias Core.Schemas.Thing
 
   @chunk_size 20
-  @rate_limit_delay_ms 10_000
+  @rate_limit_delay_ms 30_000
   @default_limit 300
 
   @impl Oban.Worker
