@@ -185,6 +185,9 @@ defmodule Web.CollectionLive do
     current_modal_thing_id = socket.assigns.modal_thing_id
     current_selected_mechanics = socket.assigns.selected_mechanics
 
+    sort_changed? =
+      sort_field != current_sort_field or sort_direction != current_sort_direction
+
     cond do
       # Username changed, reload collection
       username != socket.assigns.username ->
@@ -231,14 +234,20 @@ defmodule Web.CollectionLive do
 
         {:noreply, socket}
 
-      # Filters changed (but same username), try client-side filtering first
+      # Filters changed (but same username), try client-side filtering first.
+      # Sync ALL URL-derived assigns before invoking the cache so that any
+      # simultaneous change to sort or mechanics is honored too. Without this,
+      # the cond fall-through silently dropped sort/mechanics updates that
+      # arrived alongside filter changes.
       filters != current_filters ->
         socket =
           socket
-          # Also update page
           |> assign(:current_page, page)
-          # Also update advanced_search
           |> assign(:advanced_search, advanced_search)
+          |> assign(:sort_by, sort_field)
+          |> assign(:sort_direction, sort_direction)
+          |> assign(:selected_mechanics, selected_mechanics)
+          |> assign(:modal_thing_id, modal_thing_id)
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
@@ -255,22 +264,47 @@ defmodule Web.CollectionLive do
             {:noreply, socket}
         end
 
-      # Selected mechanics changed - apply client-side filtering
+      # Selected mechanics changed (and filters unchanged).
       selected_mechanics != current_selected_mechanics ->
         Logger.info("🔍 MECHANICS DEBUG: Mechanics changed, applying client-side filtering")
 
-        # Use apply_client_side_filters so the active filters (average, primary_name,
-        # players, etc.) are reapplied alongside the new mechanics selection. The
-        # previous helper, apply_mechanics_filtering, only considered mechanics and
-        # silently dropped every other filter from the rendered view.
+        # Sync sort assigns from URL so a concurrent sort change in the same
+        # URL update is captured. Without this the cond fall-through silently
+        # dropped sort updates that arrived alongside mechanics changes.
         socket =
           socket
           |> assign(:selected_mechanics, selected_mechanics)
           |> assign(:advanced_search, advanced_search)
           |> assign(:modal_thing_id, modal_thing_id)
-          |> then(&apply_client_side_filters(&1, &1.assigns.filters))
-          # Reset to page 1 when filtering changes
-          |> assign(:current_page, 1)
+          |> assign(:sort_by, sort_field)
+          |> assign(:sort_direction, sort_direction)
+
+        # If sort ALSO changed, the cached items must be re-sorted via the
+        # cache layer; pure client-side filtering would preserve the old order.
+        # If only mechanics changed, client-side filtering is sufficient and
+        # cheaper. Either path uses apply_client_side_filters / the cache to
+        # combine the active filters with the new mechanics selection so other
+        # filters (average, primary_name, ...) survive.
+        socket =
+          if sort_changed? do
+            socket =
+              socket
+              |> assign(:collection_loading, true)
+              |> assign(:search_error, nil)
+
+            case reapply_filters_to_collection(socket, socket.assigns.filters) do
+              {:ok, s} ->
+                s
+
+              {:reload_needed, s} ->
+                send(self(), {:load_collection_with_filters, username, s.assigns.filters})
+                s
+            end
+          else
+            then(socket, &apply_client_side_filters(&1, &1.assigns.filters))
+          end
+
+        socket = assign(socket, :current_page, 1)
 
         # Preserve modal state if modal_thing_id is present
         socket =
@@ -285,8 +319,9 @@ defmodule Web.CollectionLive do
 
         {:noreply, socket}
 
-      # Sort parameters changed - re-sort existing cached data
-      sort_field != current_sort_field or sort_direction != current_sort_direction ->
+      # Sort parameters changed - re-sort existing cached data.
+      # Sync mechanics from URL so the cache query uses the latest value.
+      sort_changed? ->
         original_items = socket.assigns.original_collection_items
 
         socket =
@@ -296,6 +331,8 @@ defmodule Web.CollectionLive do
           # Reset to page 1
           |> assign(:current_page, 1)
           |> assign(:advanced_search, advanced_search)
+          |> assign(:selected_mechanics, selected_mechanics)
+          |> assign(:modal_thing_id, modal_thing_id)
           |> assign(:collection_loading, true)
           |> assign(:search_error, nil)
 
