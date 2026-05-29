@@ -207,7 +207,16 @@ defmodule Web.JobsDashboardLive do
 
   defp job_message(%{state: state, errors: errors})
        when state in ["retryable", "discarded"] and is_list(errors) and errors != [] do
-    errors |> List.last() |> Map.get("message", "Unknown error") |> String.slice(0, 100)
+    # Oban stores entries as %{"at" => _, "attempt" => _, "error" => formatted}
+    # where `error` is the full "** (ExceptionType) msg\n    stack..." string.
+    # Show just the first line (the exception + its message); the truncated
+    # stack trace prefix from the previous version was useless in the table.
+    raw = errors |> List.last() |> Map.get("error") || "Unknown error"
+
+    raw
+    |> String.split("\n", parts: 2)
+    |> List.first()
+    |> String.slice(0, 200)
   end
 
   defp job_message(%{meta: meta}) when is_map(meta) do

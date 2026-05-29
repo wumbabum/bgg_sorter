@@ -133,6 +133,41 @@ defmodule Web.AdminJobsLiveTest do
       assert html =~ "✅ Completed"
     end
 
+    test "shows first line of Oban error for discarded jobs (not 'Unknown error')",
+         %{conn: conn} do
+      {:ok, job} =
+        Dispatch.Workers.PrecacheWorker.new(%{})
+        |> Oban.insert()
+
+      now = DateTime.utc_now()
+
+      # Match Oban's actual on-disk shape for the errors column.
+      oban_error = %{
+        "at" => DateTime.to_iso8601(now),
+        "attempt" => 1,
+        "error" =>
+          "** (File.Error) could not stream \"/app/missing.csv\": no such file or directory\n    (elixir 1.15.6) lib/file/stream.ex:94: anonymous fn/3 in Enumerable.File.Stream.reduce/3"
+      }
+
+      Oban.Job
+      |> Core.Repo.get!(job.id)
+      |> Ecto.Changeset.change(
+        state: "discarded",
+        attempted_at: now,
+        discarded_at: now,
+        attempt: 1,
+        errors: [oban_error]
+      )
+      |> Core.Repo.update!()
+
+      {:ok, _view, html} = live(auth_conn(conn), "/admin/jobs")
+
+      # Show the first line of the actual error string, not a generic fallback.
+      assert html =~ "File.Error"
+      assert html =~ "could not stream"
+      refute html =~ "Unknown error"
+    end
+
     test "shows warning badge when completed job recorded status=error", %{conn: conn} do
       {:ok, job} =
         Dispatch.Workers.PrecacheWorker.new(%{})
