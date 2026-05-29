@@ -23,24 +23,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Prepare build dir
 WORKDIR /app
 
-# Install hex + rebar. Cache the hex registry and mix archives so
-# repeated builds don't re-download these.
-RUN --mount=type=cache,target=/root/.hex \
-    --mount=type=cache,target=/root/.mix \
-    mix local.hex --force && \
+# Install hex + rebar. These write the hex/rebar mix archives into
+# /root/.mix/archives, which MUST persist into the image so subsequent
+# RUN steps (mix deps.get, mix assets.deploy, mix compile, etc.) can
+# find them. Do NOT cache-mount /root/.mix here -- the mount detaches
+# at the end of the RUN and the archives vanish from the image
+# filesystem, causing later steps to fail with "Mix requires the Hex
+# package manager".
+RUN mix local.hex --force && \
     mix local.rebar --force
 
 # Set build ENV
 ENV MIX_ENV=prod
 
-# Install mix dependencies. Hex's package cache lives in /root/.hex.
+# Install mix dependencies. Cache /root/.hex (the hex package cache)
+# so repeated deps.get calls don't re-download tarballs. /root/.mix is
+# NOT cache-mounted -- see comment above.
 COPY mix.exs mix.lock ./
 COPY config config
 COPY apps/core/mix.exs apps/core/
 COPY apps/web/mix.exs apps/web/
 COPY apps/dispatch/mix.exs apps/dispatch/
 RUN --mount=type=cache,target=/root/.hex \
-    --mount=type=cache,target=/root/.mix \
     mix deps.get --only=prod
 
 # Compile dependencies. This is the largest single time sink in a cold
@@ -49,7 +53,6 @@ RUN --mount=type=cache,target=/root/.hex \
 # repeat work (e.g. when only one dep changes and rebar/hex registry
 # stays warm).
 RUN --mount=type=cache,target=/root/.hex \
-    --mount=type=cache,target=/root/.mix \
     mix deps.compile
 
 # Copy application source
@@ -58,7 +61,6 @@ COPY apps apps
 # Install asset compilation tools (esbuild, tailwind). These download
 # pre-built binaries on first run.
 RUN --mount=type=cache,target=/root/.hex \
-    --mount=type=cache,target=/root/.mix \
     mix assets.setup
 
 # Compile assets and application
